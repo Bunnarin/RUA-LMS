@@ -92,7 +92,7 @@ const App = () => {
         formData[field.label] = '';
 
     await ctx.api.request({
-      url: 'workflows.endpoint:execute?title=submit-evaluation',
+      url: 'schedule:submit-evaluation',
       method: 'POST',
       data: {
         scheduleId,
