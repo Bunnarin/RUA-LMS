@@ -96,7 +96,7 @@ const App = () => {
       method: 'POST',
       data: {
         scheduleId,
-        answers: questions.map(q => formData[q.label]?.trim() ?? '')
+        answers: questions.map(q => formData[q.label]?.trim())
       }
     }).then(() => {
       ctx.message.success('រួចរាល់');
