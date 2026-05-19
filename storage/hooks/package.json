@@ -1,0 +1,12 @@
+{
+  "name": "nocobase-hooks",
+  "version": "1.0.0",
+  "description": "Custom hooks for NocoBase",
+  "peerDependencies": {
+    "@nocobase/client": "2.x.x",
+    "@nocobase/server": "2.x.x"
+  },
+  "devDependencies": {
+    "@types/node": "^25.8.0"
+  }
+}

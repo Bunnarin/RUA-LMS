@@ -8,51 +8,61 @@ export default class SubmitEvaluationPlugin extends Plugin {
                 ctx.body = { success: false, message: 'You are not authorized to process payment' };
                 return;
             }
-            const { semesterId } = ctx.action?.params.values;
-            // shouldn't this pick up from the last one?
-            const semesters = await ctx.db.getRepository('semester').find({
+            const { targetSemesterId } = ctx.action?.params.values;
+            // shouldn't this pick up from the last one? it should not have any in-between
+            // what abt the ppl with in-between? just go up one at a time.
+            // whay abt ppl with debt from last sem? umm we'll also notify on the frontend, that they should clear debt from 
+            const [lastSemester, currentSemester] = await this.db.getRepository('semester').find({
                 filter: {
-                    id: { $lte: semesterId },
+                    $or: [
+                        { id: { $lte: targetSemesterId } },
+                    ]
                 },
-            });
-            const semester = semesters.find((s: any) => s.get('id') === semesterId);
-            if (!semester) {
-                ctx.body = { success: false, message: 'Semester not found' };
-                return;
-            }
-            const fullScholarshipStudents = await ctx.db.getRepository('student').find({
-                filter: {
-                    scholarshipCoverage: 100,
-                    scholarshipSourceId: { $ne: null },
-                    enrollments: {
-                        validTilSemesterId: { $lt: semesterId },
-                        graduationDate: null,
-                        dropoutDate: null,
-                    },
-                },
-                appends: ['enrollments', 'enrollments.program'],
-                fields: ['id', 'scholarshipSourceId', 'scholarshipCoverage']
+                limit: 2,
             });
 
-            // for scholarship student, create both the fee and the ledger entry for only one sem
-            fullScholarshipStudents.forEach((s: any) => {
-                // create fee
-                s.get('enrollments').forEach((e: any) => {
-                    const programFee = e.get('program').get('semesterFee');
-                    // TODO: create fee for this program
-                    // create a ledger entry for this fee
-                    this.db.getRepository('ledger').create({
-                        values: {
+            const enrollmentRepo = this.db.getRepository('enrollment');
+
+            const fullScholarshipEnrollments = await enrollmentRepo.find({
+                filter: {
+                    student: {
+                        scholarshipCoverage: 100,
+                        scholarshipSourceId: { $ne: null },
+                    },
+                    validTilSemesterId: lastSemester.get('id'),
+                    graduationDate: null,
+                    dropoutDate: null,
+                },
+                appends: ['program', 'student'],
+            });
+
+            fullScholarshipEnrollments.forEach(async (e: any) => {
+                // create fee and scholarship discount
+                // shouldn't I push for robustness and edit the enrollment field with onrecord create? man fk u
+                // but still we need to make sure the student have no debt, right? meh, it can't be that bad? cuz we can just create in the db level and the app wouldn't know
+                // but I don't want future maintainer to mess this up. alright so whenever create, we check if they have debt and update. aish, but we can still update student.enrollemtns anw. ugh f u
+                this.db.getRepository('ledger').createMany({
+                    records: [
+                        {
                             enrollmentId: e.get('id'),
-                            semesterId: semesterId,
-                            amount: programFee.get('amount'),
-                            currency: programFee.get('currency'),
+                            semesters: [currentSemester],
                             type: 'fee',
-                            description: 'Scholarship payment',
+                            amount: -e.get('program').get('semesterFee'),
                         },
-                    });
+                        {
+                            enrollmentId: e.get('id'),
+                            semesters: [currentSemester],
+                            type: 'scholarship discount',
+                            amount: e.get('program').get('semesterFee'),
+                        }
+                    ]
                 });
-                // create ledger entry
+                enrollmentRepo.update({
+                    filterByTk: e.get('id'),
+                    values: {
+                        validTilSemesterId: currentSemester.get('id'),
+                    },
+                });
             });
 
             ctx.body = { success: true };
