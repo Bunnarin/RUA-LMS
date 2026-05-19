@@ -123,6 +123,12 @@ function buildGroups(filtered, groupBy) {
     return Object.values(groups);
 }
 
+// helper
+function kh(number) {
+    const khmerDigits = ['០', '១', '២', '៣', '៤', '៥', '៦', '៧', '៨', '៩'];
+    return number.toString().replace(/\d/g, (digit) => khmerDigits[digit]);
+}
+
 // for some reason the react style block have some power over the doc download, except the font
 const DocTemplate = forwardRef(({ selectedProgramId, selectedYear, selectedGeneration, groupBy }, ref) => {
     const selectedProgram = faculty.programs?.find(p => p.id === selectedProgramId);
@@ -136,7 +142,10 @@ const DocTemplate = forwardRef(({ selectedProgramId, selectedYear, selectedGener
     let globalIndex = 0;
     return (<div ref={ref}>
         <style>{`
-            table, p {
+            p, .invisible-table {
+                font-family: 'Khmer OS Muol Light', sans-serif;
+            }
+            table {
                 font-family: 'Khmer OS Battambang', sans-serif;
                 border-collapse: collapse;
                 width: 100%;
@@ -164,11 +173,11 @@ const DocTemplate = forwardRef(({ selectedProgramId, selectedYear, selectedGener
         <p style={{ textAlign: 'center' }}>
             បញ្ជីរាយនាមនិស្សិត {selectedProgram?.khmerName}
             <br />
-            {selectedYear ? `ឆ្នាំទី ${selectedYear}` : ''}
+            {selectedYear ? `ឆ្នាំទី ${kh(selectedYear)}` : ''}
             {/* if we have field we use it, if not we calculate (will be depracte in the future since we planning to use workflow to populate field) */}
-            {selectedGeneration ? `ជំនាន់ទី ${selectedGeneration}` :
-                selectedYear && selectedProgram ? `ជំនាន់ទី ${semester.startYear - selectedProgram.startYear + 1 - selectedYear}` : ''}
-            ឆ្នាំសិក្សា {semester.startYear} - {semester.startYear + 1} ឆមាសទី {semester.number}
+            {selectedGeneration ? `ជំនាន់ទី ${kh(selectedGeneration)}` :
+                selectedYear && selectedProgram ? `ជំនាន់ទី ${kh(semester.startYear - selectedProgram.startYear + 1 - selectedYear)}` : ''}
+            ឆ្នាំសិក្សា {kh(semester.startYear)} - {kh(semester.startYear + 1)} ឆមាសទី {kh(semester.number)}
         </p>
         <table>
             <thead>
@@ -237,10 +246,10 @@ const DocTemplate = forwardRef(({ selectedProgramId, selectedYear, selectedGener
             <tr>
                 <td>
                     {facultyId == 1 && <>
-                        ចំនួននិស្សិតសរុប(រាប់ជំនាញ២)៖ {filtered.reduce((acc, s) => acc + (s.enrollments.length || 0), 0)}នាក់ (ស្រី៖ {filtered.filter(s => s.sex == 'F').reduce((acc, s) => acc + (s.enrollments?.length || 0), 0)}នាក់)
+                        ចំនួននិស្សិតសរុប(រាប់ជំនាញ២)៖ {kh(filtered.reduce((acc, s) => acc + (s.enrollments.length || 0), 0))}នាក់ (ស្រី៖ {kh(filtered.filter(s => s.sex == 'F').reduce((acc, s) => acc + (s.enrollments?.length || 0), 0))}នាក់)
                         <br />
                     </>}
-                    ចំនួននិស្សិតសរុប៖ {filtered.length}នាក់ (ស្រី៖ {filtered.filter(s => s.sex == 'F').length}នាក់)
+                    ចំនួននិស្សិតសរុប៖ {kh(filtered.length)}នាក់ (ស្រី៖ {kh(filtered.filter(s => s.sex == 'F').length)}នាក់)
                     <br /><br />
                     បានឃើញ និងឯកភាព
                     <br />
@@ -252,9 +261,9 @@ const DocTemplate = forwardRef(({ selectedProgramId, selectedYear, selectedGener
                     នាយកមជ្ឈមណ្ឌលសិក្សានិងសេវានិស្សិត
                 </td>
                 <td>
-                    ថ្ងៃ ខែ ឆ្នាំម្សាញ់ សប្តស័ក ព.ស ២៥៦៩
+                    ថ្ងៃ.......................... ខែ.................. ឆ្នាំម្សាញ់ សប្តស័ក ព.ស ២៥៦៩
                     <br />
-                    រាជធានីភ្នំពេញ, ថ្ងៃទី ខែ ឆ្នាំ ២០២៦
+                    រាជធានីភ្នំពេញ, ថ្ងៃទី ..................ខែ .......................២០២៦
                     <br />
                     ព្រឺទ្ធបុរស
                 </td>

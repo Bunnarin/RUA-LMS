@@ -2,15 +2,7 @@ const classId = await ctx.getVar('ctx.popup.resource.filterByTk');
 
 const { React } = ctx.libs;
 const { useState, useMemo, useRef } = React;
-const {
-    Select,
-    Table,
-    DatePicker,
-    Switch,
-    Space,
-    Tag,
-    Button
-} = ctx.libs.antd;
+const { Select, Table, DatePicker, Tag, Button } = ctx.libs.antd;
 const { RangePicker } = DatePicker;
 
 let attendances = [];
@@ -23,10 +15,17 @@ await ctx.api.request({
                 classes: {
                     id: classId
                 }
+            },
+            date: {
+                $dateAfter: {
+                    type: 'past',
+                    number: 1,
+                    unit: 'year'
+                }
             }
         },
         appends: 'student,course',
-        limit: 100000 // or else it'll default to 20
+        pageSize: 1000000 // or else it'll default to 20
     }
 }).then(res => attendances = res.data.data);
 
@@ -41,7 +40,6 @@ const App = () => {
     const docRef = useRef(null);
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [dateRange, setDateRange] = useState(null);
-    const [showDetails, setShowDetails] = useState(false);
 
     const download = (isExcel = false) => {
         const fullHTML = `
@@ -103,12 +101,6 @@ const App = () => {
                 if (dateRange[0] && dateRange[1])
                     // Both start and end date provided
                     return attendanceDate >= dateRange[0].startOf('day') && attendanceDate <= dateRange[1].endOf('day');
-                else if (dateRange[0])
-                    // Only start date provided
-                    return attendanceDate >= dateRange[0].startOf('day');
-                else if (dateRange[1])
-                    // Only end date provided
-                    return attendanceDate <= dateRange[1].endOf('day');
 
                 return true;
             });
@@ -196,13 +188,13 @@ const App = () => {
         // Generate columns
         const columns = [
             {
-                title: 'Student ID',
+                title: 'ID',
                 dataIndex: 'studentId',
                 key: 'studentId',
                 width: 100,
             },
             {
-                title: 'Student',
+                title: 'Name',
                 dataIndex: 'student',
                 key: 'student',
                 fixed: 'left',
@@ -236,10 +228,12 @@ const App = () => {
 
         sortedDates.forEach(date => {
             columns.push({
-                title: date,
+                title: new Date(date).toLocaleDateString('en-US', {
+                    month: '2-digit',
+                    day: '2-digit'
+                }),
                 dataIndex: date,
                 key: date,
-                width: 120,
                 render: (cellData) => {
                     if (!cellData || cellData.count === 0) return '-';
 
@@ -251,66 +245,44 @@ const App = () => {
                         );
                     } else {
                         // Impure attendance
-                        if (showDetails && cellData.details) {
-                            return (
-                                <div>
-                                    {Object.entries(cellData.details).map(([status, count]) => (
-                                        <div key={status}>
-                                            <Tag color={statusColorMap[cellData.status]} size="small">
-                                                {status}: {count}
-                                            </Tag>
-                                        </div>
-                                    ))}
-                                </div>
-                            );
-                        } else {
-                            const nonAbsentCount = Object.entries(cellData.details)
-                                .filter(([status]) => status !== 'A')
-                                .reduce((sum, [, count]) => sum + count, 0);
+                        const nonAbsentCount = Object.entries(cellData.details)
+                            .filter(([status]) => status !== 'A')
+                            .reduce((sum, [, count]) => sum + count, 0);
 
-                            return (
-                                <Tag color={statusColorMap[cellData.status]}>
-                                    {nonAbsentCount}/{cellData.count} {cellData.status}
-                                </Tag>
-                            );
-                        }
+                        return (
+                            <Tag color={statusColorMap[cellData.status]}>
+                                {nonAbsentCount != cellData.count && nonAbsentCount > 0 ? `${nonAbsentCount}/${cellData.count} ` : ''}{cellData.status}
+                            </Tag>
+                        );
                     }
                 }
             });
         });
 
         return { tableData, columns };
-    }, [filteredAttendances, showDetails]);
+    }, [filteredAttendances]);
 
     return (<>
         {/* Filters */}
-        <Space wrap>
-            <Select
-                placeholder="Select Course"
-                style={{ width: 200 }}
-                allowClear
-                options={courses}
-                value={selectedCourse}
-                onChange={setSelectedCourse}
-            />
-            <RangePicker
-                placeholder={['Start Date', 'End Date']}
-                onChange={setDateRange}
-            />
-            <Space>
-                Show Details:
-                <Switch
-                    checked={showDetails}
-                    onChange={setShowDetails}
-                />
-            </Space>
-            <Button type="primary" onClick={() => download(false)}>download word</Button>
-            <Button onClick={() => download(true)}>download excel</Button>
-        </Space>
-        <br />
+        <Select
+            placeholder="Select Course"
+            style={{ width: 200 }}
+            allowClear
+            options={courses}
+            value={selectedCourse}
+            onChange={setSelectedCourse}
+        />
+        <RangePicker
+            placeholder={['Start Date', 'End Date']}
+            onChange={setDateRange}
+        />
+        <Button type="primary" onClick={() => download(false)}>download word</Button>
+        <Button onClick={() => download(true)}>download excel</Button>
+        <br /><br />
 
         {/* Attendance Table */}
         <div ref={docRef}>
+            <p>P: វត្តមាន, A: អវត្តមាន, L: យឺត, E: ដាក់ច្បាប់</p>
             <Table
                 columns={columns}
                 dataSource={tableData}

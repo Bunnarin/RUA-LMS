@@ -11,9 +11,9 @@ export default class OnScheduleListPlugin extends Plugin {
       if (!userId) return;
 
       const isLecturer = (s: any) =>
-        s.get('lecturers').some((l: any) => l.id === userId);
+        (s.get('lecturers') ?? []).some((l: any) => l.id === userId);
       const isCoLecturer = (s: any) =>
-        s.get('co-lecturers').some((l: any) => l.id === userId);
+        (s.get('co-lecturers') ?? []).some((l: any) => l.id === userId);
 
       const lecturerSchedules: any[] = [];
       const coLecturerSchedules: any[] = [];

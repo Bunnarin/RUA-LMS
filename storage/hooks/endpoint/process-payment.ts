@@ -9,6 +9,11 @@ export default class SubmitEvaluationPlugin extends Plugin {
                 return;
             }
             // const { studentIds } = ctx.action?.params.values;
+            // by default, everyone is in debt? yeah that should be it?
+            // so there's an endpoint to put everyone in debt, and another to lift them out of debt? aight
+            // so there should be another psuedo audit log. yay. it should explain how we got to the student.balance
+            // it should be called ledger   
+            // so they should be able to lift out of debt either semester or annual, which determine the validTilSemester
             ctx.body = { success: true };
         });
     }

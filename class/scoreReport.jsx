@@ -28,14 +28,10 @@ const { data: { data: semesters } } = await ctx.api.request({
     }
 });
 
-// find the semester whose middle is closest to now
+// find the semester whose end is closest to now
 const semester = semesters.reduce((prev, curr) => {
     const time = (dateStr) => new Date(dateStr).getTime();
-    const prevMiddle = time(prev.startDate) + (time(prev.endDate) - time(prev.startDate)) / 2;
-    const currMiddle = time(curr.startDate) + (time(curr.endDate) - time(curr.startDate)) / 2;
-    const prevDiff = Math.abs(prevMiddle - new Date().getTime());
-    const currDiff = Math.abs(currMiddle - new Date().getTime());
-    return currDiff < prevDiff ? curr : prev;
+    return time(curr.endDate) < time(prev.endDate) ? curr : prev;
 });
 
 const students = classs.students.sort((a, b) => a.khmerName.localeCompare(b.khmerName, 'km'));
