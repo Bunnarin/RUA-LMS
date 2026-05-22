@@ -4,8 +4,8 @@ export default class SubmitEvaluationPlugin extends Plugin {
   async load() {
     this.app.resourceManager.registerActionHandler('schedule:submit-evaluation', async (ctx, next) => {
       const { scheduleId, answers } = ctx.action?.params.values;
-      const repo = this.db.getRepository('schedule');
-      const schedule = await repo.findOne({ filter: { id: scheduleId }, appends: ['completedStudents'] });
+      const scheduleRepo = this.db.getRepository('schedule');
+      const schedule = await scheduleRepo.findOne({ filter: { id: scheduleId }, appends: ['completedStudents'] });
       if (schedule.get('completedStudents').find((s: any) => s.id === ctx.auth.user.studentId)) {
         ctx.body = { success: false, message: 'You have already submitted this evaluation' };
         return;
@@ -22,10 +22,18 @@ export default class SubmitEvaluationPlugin extends Plugin {
         completedStudents: [...completedStudents, studentProfile]
       };
 
-      for (let i = 0; i < answers.length; i++) {
+      // find out the max number of question columns (we do this because we don't want to hardcode the num of qs in the db schema)
+      const maxQuestionIndex = Math.max(
+        ...Object.keys(schedule.toJSON())
+          .filter(key => key.startsWith('question'))
+          .map(key => parseInt(key.replace('question', '')))
+      );
+
+      for (let i = 0; i < Math.min(answers.length, maxQuestionIndex + 1); i++) {
         let answer = answers[i];
         let existing: Record<string, number> = schedule.get(`question${i}`) || {};
 
+        // this mean that this student is the first to submit, we clear out past result
         if (completedStudents.length === 0)
           existing = {};
 
@@ -40,7 +48,7 @@ export default class SubmitEvaluationPlugin extends Plugin {
       }
 
       if (Object.keys(updates).length > 0)
-        await repo.update({
+        scheduleRepo.update({
           filter: { id: scheduleId },
           values: updates,
         });

@@ -72,11 +72,11 @@ const App = () => {
         E: 'A'
     };
 
-    const getStatusConfig = {
-        A: { label: 'A', color: '#ef4444' },
-        L: { label: 'L', color: '#f59e0b' },
-        P: { label: 'P', color: '#10b981' },
-        E: { label: 'E', color: '#3b82f6' }
+    const getColor = {
+        A: '#ef4444',
+        L: '#f59e0b',
+        P: '#10b981',
+        E: '#3b82f6'
     }
 
     const handleToggle = (studentId) =>
@@ -181,7 +181,7 @@ const App = () => {
             <table>
                 {students.map(student => {
                     const { status, isLocked } = attendanceStates[student.id];
-                    const config = getStatusConfig[status];
+                    const color = getColor[status];
 
                     return (
                         <tr key={student.id} className="attendance-row">
@@ -194,8 +194,8 @@ const App = () => {
                                     disabled={isLocked}
                                     style={{
                                         backgroundColor: isLocked ? '#f1f5f9' : '#eff6ff',
-                                        color: isLocked ? '#64748b' : config.color,
-                                        border: isLocked ? '1px solid #e2e8f0' : `1px solid ${config.color}40`,
+                                        color: isLocked ? '#64748b' : color,
+                                        border: isLocked ? '1px solid #e2e8f0' : `1px solid ${color}40`,
                                         padding: '8px 16px',
                                         borderRadius: '8px',
                                         fontWeight: 600,
@@ -208,7 +208,7 @@ const App = () => {
                                         marginLeft: 'auto',
                                     }}
                                 >
-                                    {config.label}
+                                    {status}
                                 </button>
                             </td>
                             <td style={{ width: '180px' }}>

@@ -5,6 +5,24 @@ const { React } = ctx.libs;
 const { useState } = React;
 const { Select, Button, Modal } = ctx.libs.antd;
 
+// need to check if there's existing score before we allow editing
+let editableWeightIds = [];
+await ctx.api.request({
+    url: 'users:run-sql',
+    method: 'POST',
+    data: {
+        sql: `
+            SELECT 
+                w."id",
+                COUNT(s."id")
+            FROM weight w
+            LEFT JOIN score s ON w."id" = s."weightId" AND s."value" > 0
+            WHERE w."courseId" = ${ctx.value}
+            GROUP BY w."id";
+        `
+    }
+}).then(res => editableWeightIds = res.data.data.filter(w => w.count === 0).map(w => w.id));
+
 const weightToDetach = [];
 const cloToDetach = [];
 
@@ -44,7 +62,7 @@ else // use the default PLOs
 const { data: { data: assessments } } = await ctx.api.request({
     url: 'assessment:list',
     params: {
-        pageSize: 1000 // or else it'll default to only 20
+        pageSize: 10000 // or else it'll default to only 20
     }
 });
 
@@ -59,7 +77,7 @@ const App = () => {
             return ctx.modal.error({ title: 'Deadline has passed. You cannot submit changes.' });
 
         const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
-        if (totalWeight !== 100)
+        if (totalWeight !== 100 && totalWeight !== 0)
             return ctx.modal.error({ title: 'the total weight is not 100%' });
 
         // make sure each weight have assessment and PLO
@@ -125,28 +143,38 @@ const App = () => {
         for (let i = 0; i < currentWeights.length; i++) {
             const w = currentWeights[i];
             // only create the newly formed weight
-            if (!w.new) continue;
+            if (w.new) {
+                const payload = {
+                    ...w,
+                    assessment: w.assessmentId,
+                    PLO: w.PLOId,
+                    // map from temp id to db id
+                    CLO: cloIdMap[w.CLOId]
+                };
+                delete payload.id;
 
-            const payload = {
-                ...w,
-                assessment: w.assessmentId,
-                PLO: w.PLOId,
-                // map from temp id to db id
-                CLO: cloIdMap[w.CLOId]
-            };
-            delete payload.id;
+                await ctx.api.request({
+                    url: 'weight:create',
+                    method: 'POST',
+                    data: payload
+                }).then(res => currentWeights[i] = resObj(res));
 
-            await ctx.api.request({
-                url: 'weight:create',
-                method: 'POST',
-                data: payload
-            }).then(res => currentWeights[i] = resObj(res));
+                setWeights([...currentWeights]);
+            }
+            else if (w.edited) {
+                // update the weight
+                await ctx.api.request({
+                    url: 'weight:update',
+                    method: 'POST',
+                    params: { filterByTk: w.id },
+                    data: w
+                }).then(res => currentWeights[i] = resObj(res));
 
-            setWeights([...currentWeights]);
+                setWeights([...currentWeights]);
+            }
         }
-        ctx.message.success('done. you can close this popup now');
         // sorry but I really tried to update the local state after submit but it just doesn't work
-        setTimeout(() => window.location.reload(), 1000);
+        window.location.reload();
     }
 
     const addCLO = () => {
@@ -205,7 +233,7 @@ const App = () => {
 
     const updateWeight = (weightId, key, value) =>
         setWeights(prev => prev.map(w =>
-            w.id != weightId ? w : { ...w, [key]: parseInt(value) }
+            w.id != weightId ? w : { ...w, [key]: parseInt(value), edited: true }
         ));
 
     return (<div style={{ position: 'relative' }}>
@@ -275,7 +303,7 @@ const App = () => {
 
                     return cloWeights.map((w, index) => {
                         // Logic: Is this row fully "configured"?
-                        const isLocked = w.PLOId && w.assessmentId;
+                        const isLocked = !editableWeightIds.includes(w.id) && w.PLOId && w.assessmentId;
 
                         // Uniqueness logic: Filter assessments already used for THIS CLO + THIS PLO
                         const usedAssessmentIds = weights
@@ -323,6 +351,7 @@ const App = () => {
                             </>)}
                             <td>
                                 <Select
+                                    style={{ width: '100%' }}
                                     showSearch
                                     placeholder="Select PLO"
                                     optionFilterProp="label"
@@ -330,7 +359,6 @@ const App = () => {
                                     disabled={isLocked}
                                     title={'to edit, you must remove this weight and add a new one'}
                                     onChange={(val) => updateWeight(w.id, 'PLOId', val)}
-                                    style={{ width: '100%' }}
                                     options={PLOs
                                         .filter(p => !usedPLOIds.includes(p.id))
                                         .map(p => ({ label: `PLO ${p.number}`, value: p.id }))
@@ -339,6 +367,7 @@ const App = () => {
                             </td>
                             <td>
                                 <Select
+                                    style={{ width: '100%' }}
                                     showSearch
                                     placeholder="Select Assessment"
                                     onSearch={setAssessmentSearch}
@@ -377,7 +406,7 @@ const App = () => {
                             <td>
                                 <input
                                     required
-                                    disabled={!w.new}
+                                    disabled={isLocked}
                                     title={'to edit, you must remove this weight and add a new one'}
                                     type="number"
                                     min="1"

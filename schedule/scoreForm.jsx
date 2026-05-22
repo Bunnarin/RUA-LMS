@@ -153,7 +153,7 @@ const ScoreTable = forwardRef(({ scoreMap, onCommit, onPaste }, ref) => (<div re
 
     <p style={{ textAlign: 'center' }}>
         បញ្ជីរាយនាមនិស្សិត {program.khmerName} <br />
-        ឆមាសទី {semester.number} ឆ្នាំសិក្សា {semester.startYear}-{semester.startYear + 1} <br />
+        ឆមាសទី {semester.number} ឆ្នាំសិក្សា {semester.academicYear}-{semester.academicYear + 1} <br />
         {schedule.course.khmerName} ថ្នាក់ {schedule.class.name}
     </p>
 
@@ -397,7 +397,7 @@ const App = () => {
             timeoutsMap.current[key] = setTimeout(execute, 1000);
     };
 
-    const handlePaste = async (e, startRowIdx, startColIdx) => {
+    const onPaste = async (e, startRowIdx, startColIdx) => {
         e.preventDefault();
         const text = e.clipboardData.getData('Text');
         if (!text.trim()) return;
@@ -467,7 +467,8 @@ const App = () => {
             rows = rows.map(row => [row[0], ...row.slice(firstNumColIdx)]);
 
         // this one needs to account for all the first few non score columns
-        if (startColIdx + rows[0].length - firstNumColIdx > allClos.length)
+        const totalScoreColumn = rows[0].length - firstNumColIdx;
+        if (startColIdx + totalScoreColumn > allClos.length)
             return ctx.modal.error({ title: "Pasted data exceeds column boundary." });
 
         // If the first column is a number, paste by row order (no name matching) with confirmation
@@ -480,9 +481,8 @@ const App = () => {
                 const student = students[startRowIdx + r];
                 const rowData = rows[r];
 
-                for (let c = 0; c < rowData.length; c++) {
-                    const cloIndex = startColIdx + c;
-                    const clo = allClos[cloIndex];
+                for (let c = 0; c < totalScoreColumn; c++) {
+                    const clo = allClos[startColIdx + c];
                     const raw = rowData[c].trim();
                     if (raw === '') continue;
                     const value = parseFloat(raw);
@@ -560,12 +560,8 @@ const App = () => {
 
             const rowData = rows[r].slice(1); // drop the name column
 
-            if (startColIdx + rowData.length > allClos.length)
-                return ctx.modal.error({ title: "Pasted data exceeds column boundary." });
-
-            for (let c = 0; c < rowData.length; c++) {
-                const cloIndex = startColIdx + c;
-                const clo = allClos[cloIndex];
+            for (let c = 0; c < totalScoreColumn; c++) {
+                const clo = allClos[startColIdx + c];
                 const raw = rowData[c].trim();
 
                 if (raw === '') continue;
@@ -657,7 +653,7 @@ const App = () => {
         </div>
         <p>* = ធ្លាប់ធ្លាក់</p>
         <p>paste from excel: first column must be the student Khmer name. The system will automatically match the score to the name</p>
-        <ScoreTable ref={docRef} scoreMap={scoreMap} onCommit={handleCommit} onPaste={handlePaste} />
+        <ScoreTable ref={docRef} scoreMap={scoreMap} onCommit={handleCommit} onPaste={onPaste} />
     </>);
 };
 

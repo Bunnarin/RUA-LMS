@@ -1,6 +1,5 @@
 storage/*
 !storage/hooks/
-package.json
 
 # Dependencies
 node_modules/

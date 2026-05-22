@@ -92,7 +92,7 @@ const App = () => {
     };
 
     return (<>
-        <h1>{semester.startYear}-{(semester.startYear + 1) % 100} - ឆមាសទី {semester.number}</h1>
+        <h1>{semester.academicYear}-{(semester.academicYear + 1) % 100} - ឆមាសទី {semester.number}</h1>
         <table>
             <thead>
                 <tr>

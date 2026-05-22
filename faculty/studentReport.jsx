@@ -17,15 +17,17 @@ if (faculty.abbreviation == 'GS')
     await ctx.api.request({
         url: 'program:list',
         params: {
-            $or: [
-                { degree: 'MSc' },
-                { degree: 'PhD' }
-            ]
+            filter: {
+                $or: [
+                    { degree: 'MSc' },
+                    { degree: 'PhD' }
+                ]
+            },
+            pageSize: 10000
         }
     }).then(res => {
         const delgatedPrograms = res.data.data.filter(p => delegatedGSProgramIds.includes(p.id));
         faculty.programs = [...faculty.programs, ...delgatedPrograms];
-        console.log(faculty.programs);
     });
 
 const { data: { data: semesters } } = await ctx.api.request({
@@ -65,8 +67,8 @@ else if (faculty.abbreviation == 'GS')
     filter.$and.push({
         $or: [
             // cuz we store MSc and PhD as 2, 3
-            { enrollments: { program: { degree: '2' } } },
-            { enrollments: { program: { degree: '3' } } }
+            { enrollments: { program: { degree: 'MSc' } } },
+            { enrollments: { program: { degree: 'PhD' } } }
         ]
     });
 else
@@ -95,7 +97,7 @@ function buildGroups(filtered, groupBy) {
         else if (groupBy === 'program')
             student.enrollments.forEach(e => {
                 if (faculty.abbreviation != 'GS' && e.program.facultyId != facultyId) return;
-                if (faculty.abbreviation == 'GS' && !delegatedGSProgramIds.includes(e.program.id)) return;
+                if (faculty.abbreviation == 'GS' && !faculty.programs.map(p => p.id).includes(e.programId)) return;
                 const key = e.programId || 'unknown';
                 groups[key] ??= { key, label: e.program.khmerName, students: [] };
                 groups[key].students.push(student);
@@ -176,8 +178,8 @@ const DocTemplate = forwardRef(({ selectedProgramId, selectedYear, selectedGener
             {selectedYear ? `ឆ្នាំទី ${kh(selectedYear)}` : ''}
             {/* if we have field we use it, if not we calculate (will be depracte in the future since we planning to use workflow to populate field) */}
             {selectedGeneration ? `ជំនាន់ទី ${kh(selectedGeneration)}` :
-                selectedYear && selectedProgram ? `ជំនាន់ទី ${kh(semester.startYear - selectedProgram.startYear + 1 - selectedYear)}` : ''}
-            ឆ្នាំសិក្សា {kh(semester.startYear)} - {kh(semester.startYear + 1)} ឆមាសទី {kh(semester.number)}
+                selectedYear && selectedProgram ? `ជំនាន់ទី ${kh(semester.academicYear - selectedProgram.academicYear + 1 - selectedYear)}` : ''}
+            ឆ្នាំសិក្សា {kh(semester.academicYear)} - {kh(semester.academicYear + 1)} ឆមាសទី {kh(semester.number)}
         </p>
         <table>
             <thead>
@@ -265,7 +267,7 @@ const DocTemplate = forwardRef(({ selectedProgramId, selectedYear, selectedGener
                     <br />
                     រាជធានីភ្នំពេញ, ថ្ងៃទី ..................ខែ .......................២០២៦
                     <br />
-                    ព្រឺទ្ធបុរស
+                    ព្រឹទ្ធបុរស
                 </td>
             </tr>
         </table>

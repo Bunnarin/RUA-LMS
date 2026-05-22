@@ -57,7 +57,7 @@ const getCourseInfo = (scores, courseId, noWeights = false) => {
     let total = courseScores.reduce((acc, score) => acc + score.value, 0);
     const hasMakeup = courseScores.some(score => score.makeup);
 
-    let displayValue = getGPA(total).toFixed(2);
+    let displayValue = gradeSpec.find(g => total >= g.min).GPA.toFixed(2);
     // different pass logic for LC
     if (courseId == 123) {
         total = 0;
@@ -74,25 +74,15 @@ const getCourseInfo = (scores, courseId, noWeights = false) => {
     return { total, displayValue, hasMakeup };
 }
 
-const getGrade = (GPA) => {
-    if (GPA == 4.0) return 'A';
-    if (GPA >= 3.5) return 'B+';
-    if (GPA >= 3.0) return 'B';
-    if (GPA >= 2.5) return 'C+';
-    if (GPA >= 2.0) return 'C';
-    if (GPA >= 1.5) return 'D';
-    if (GPA >= 1.0) return 'E';
-    return 'F';
-}
+let gradeSpec;
+await ctx.api.request({
+    url: 'KV:get',
+    params: {
+        filterByTk: 'gradeSpec'
+    }
+}).then(res => gradeSpec = JSON.parse(resObj(res).value));
 
-const getGPA = (score) => {
-    if (score >= 85) return 4.0;
-    if (score >= 80) return 3.5;
-    if (score >= 70) return 3.0;
-    if (score >= 65) return 2.5;
-    if (score >= 50) return 2.0;
-    return 0.0;
-};
+const GPAtoGrade = (GPA) => gradeSpec.find(g => Math.round(GPA * 2) / 2 >= g.GPA).grade;
 
 const DocTemplate = forwardRef(({ showGPA, sortRank, selectedSemesterNum }, ref) => {
     const selectedCourses = courses.filter(c => c.semesterNum == selectedSemesterNum);
@@ -124,9 +114,9 @@ const DocTemplate = forwardRef(({ showGPA, sortRank, selectedSemesterNum }, ref)
         rankMap[s.studentId] = currentRank;
     });
 
-    const gradesOrder = ['A', 'B+', 'B', 'C+', 'C', 'D', 'E', 'F'];
+    const gradesOrder = gradeSpec.map(g => g.grade);
     const gradeCounts = studentStats.reduce((acc, stats) => {
-        const grade = getGrade(stats.weightedTotalGPA / totalCredit);
+        const grade = GPAtoGrade(stats.weightedTotalGPA / totalCredit);
         acc[grade] = (acc[grade] || 0) + 1;
         return acc;
     }, {});
@@ -159,7 +149,7 @@ const DocTemplate = forwardRef(({ showGPA, sortRank, selectedSemesterNum }, ref)
             </tr>
         </table>
         <p style={{ textAlign: 'center' }}>
-            លទ្ធផលប្រឡងឆមាសទី {selectedSemesterNum} និស្សិតឆ្នាំទី {classs.year} ឆ្នាំសិក្សា {semester.startYear}-{semester.startYear + 1}
+            លទ្ធផលប្រឡងឆមាសទី {selectedSemesterNum} និស្សិតឆ្នាំទី {classs.year} ឆ្នាំសិក្សា {semester.academicYear}-{semester.academicYear + 1}
             <br />
             ថ្នាក់ {classs.name}
         </p>
@@ -200,7 +190,7 @@ const DocTemplate = forwardRef(({ showGPA, sortRank, selectedSemesterNum }, ref)
                 </tr>
             </thead>
             <tbody>
-                {students.sort((a, b) => sortRank ? rankMap[a.id] - rankMap[b.id] : 0).map((student, idx) => {
+                {students.sort((a, b) => sortRank ? rankMap[a.id] - rankMap[b.id] : a.khmerName.localeCompare(b.khmerName)).map((student, idx) => {
                     const stats = studentStats.find(s => s.studentId === student.id);
                     return (
                         <tr key={student.id}>
@@ -212,11 +202,11 @@ const DocTemplate = forwardRef(({ showGPA, sortRank, selectedSemesterNum }, ref)
                             {selectedCourses.map(course => {
                                 const { total, displayValue, hasMakeup } = getCourseInfo(student.scores, course.id, course.weights.length == 0);
                                 if (isNaN(displayValue)) return <td key={course.id}>{displayValue}{hasMakeup ? '*' : ''}</td>;
-                                return <td key={course.id} style={{ backgroundColor: displayValue >= 2 ? 'white' : '#ccc' }}>{showGPA ? displayValue : total}{hasMakeup ? '*' : ''}</td>;
+                                return <td key={course.id} style={{ backgroundColor: displayValue >= gradeSpec.find(g => g.passThreshold).GPA ? 'white' : '#ccc' }}>{showGPA ? displayValue : total}{hasMakeup ? '*' : ''}</td>;
                             })}
                             <td>{stats.weightedTotalGPA}{stats.containMakeup ? '*' : ''}</td>
                             <td>{(stats.weightedTotalGPA / totalCredit).toFixed(2)}</td>
-                            <td>{getGrade(stats.weightedTotalGPA / totalCredit)}</td>
+                            <td>{GPAtoGrade(stats.weightedTotalGPA / totalCredit)}</td>
                             {classs.programId != 1 && <td>{rankMap[student.id]}</td>}
                         </tr>
                     );
@@ -241,7 +231,7 @@ const DocTemplate = forwardRef(({ showGPA, sortRank, selectedSemesterNum }, ref)
                 </td>
             </tr>
         </table>
-        <br />
+        {/* <br />
         <table style={{ width: '200px' }}>
             <thead>
                 <tr>
@@ -261,7 +251,7 @@ const DocTemplate = forwardRef(({ showGPA, sortRank, selectedSemesterNum }, ref)
                     <td>{students.length}</td>
                 </tr>
             </tbody>
-        </table>
+        </table> */}
     </div>)
 })
 

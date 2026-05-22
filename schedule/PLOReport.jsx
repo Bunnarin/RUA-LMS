@@ -1,3 +1,5 @@
+const resObj = (res) => Array.isArray(res.data.data) ? res.data.data[0] : res.data.data;
+
 const { React } = ctx.libs;
 const { useRef, forwardRef } = React;
 const { Button } = ctx.libs.antd;
@@ -26,6 +28,17 @@ const semester = semesters.reduce((prev, curr) => {
     const currDiff = Math.abs(currMiddle - new Date().getTime());
     return currDiff < prevDiff ? curr : prev;
 });
+
+let gradeSpec;
+
+await ctx.api.request({
+    url: 'KV:get',
+    params: {
+        filterByTk: 'gradeSpec'
+    }
+}).then(res => gradeSpec = JSON.parse(resObj(res).value));
+
+const scoreToGrade = (score) => gradeSpec.find(g => score >= g.min)?.grade;
 
 const { data: { data: schedule } } = await ctx.api.request({
     url: 'schedule:get',
@@ -156,16 +169,7 @@ const PLOTable = ({ plo }) => {
                         <td>
                             {(() => {
                                 if (res.hasAnyZeroAssessment) return 'F';
-                                const pct = res.percentage;
-                                let grade = 'F';
-                                if (pct >= 85) grade = 'A';
-                                else if (pct >= 80) grade = 'B+';
-                                else if (pct >= 70) grade = 'B';
-                                else if (pct >= 65) grade = 'C+';
-                                else if (pct >= 50) grade = 'C';
-                                else if (pct >= 45) grade = 'D';
-                                else if (pct >= 40) grade = 'E';
-                                return grade + (res.hasMakeup ? '*' : '');
+                                return scoreToGrade(res.percentage) + (res.hasMakeup ? '*' : '');
                             })()}
                         </td>
                     </tr>
@@ -219,7 +223,7 @@ const DocTemplate = forwardRef((props, ref) => (<div ref={ref}>
     <p style={{ textAlign: 'center' }}>
         បញ្ជីរាយនាមនិស្សិត {program.khmerName}
         <br />
-        ឆ្នាំទី{schedule.course.year} ជំនាន់ទី{semester.startYear - program.startYear + 1 - schedule.class.year} ឆ្នាំសិក្សា {semester.startYear}-{semester.startYear + 1}
+        ឆ្នាំទី{schedule.course.year} ជំនាន់ទី{semester.academicYear - program.startYear + 1 - schedule.class.year} ឆ្នាំសិក្សា {semester.academicYear}-{semester.academicYear + 1}
         <br />
         {schedule.course.khmerName} ថ្នាក់ {schedule.class.name}
     </p>
@@ -227,7 +231,7 @@ const DocTemplate = forwardRef((props, ref) => (<div ref={ref}>
     <table className="invisible-table">
         <tr>
             <td>
-                សំគាល់៖ ពិន្ទុដែលទទួលបាន 0.00 ឬ Unsatisfied ជាពិន្ទុប្រឡងធ្លាក់ដែលត្រូវប្រឡងសង។
+                សំគាល់៖ ពិន្ទុដែលទទួលបាន 0.00 ជាពិន្ទុប្រឡងធ្លាក់ដែលត្រូវប្រឡងសង។
                 <br /><br />
                 បានឃើញ និងឯកភាព
                 <br />

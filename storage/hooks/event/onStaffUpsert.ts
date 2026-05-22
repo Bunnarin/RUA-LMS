@@ -1,6 +1,6 @@
 import { Plugin } from '@nocobase/server';
 
-export default class OnStaffCreatePlugin extends Plugin {
+export default class OnStaffUpsertPlugin extends Plugin {
   async load() {
     this.db.on('users.beforeCreate', this.beforeUpsert.bind(this));
     this.db.on('users.beforeUpdate', this.beforeUpsert.bind(this));

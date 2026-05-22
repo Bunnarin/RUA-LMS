@@ -70,7 +70,7 @@ const getCourseInfo = (scores, courseId, noWeights = false) => {
     let total = courseScores.reduce((acc, score) => acc + score.value, 0);
     const hasMakeup = courseScores.some(score => score.makeup);
 
-    let displayValue = getGPA(total).toFixed(2);
+    let displayValue = scoreToGPA(total).toFixed(2);
     // different pass logic for LC
     if (courseId == 123) {
         total = 0;
@@ -93,25 +93,17 @@ const totalCredit = courses.reduce((acc, course) => {
     return acc + credit;
 }, 0);
 
-const getGrade = (GPA) => {
-    if (GPA == 4.0) return 'A';
-    if (GPA >= 3.5) return 'B+';
-    if (GPA >= 3.0) return 'B';
-    if (GPA >= 2.5) return 'C+';
-    if (GPA >= 2.0) return 'C';
-    if (GPA >= 1.5) return 'D';
-    if (GPA >= 1.0) return 'E';
-    return 'F';
-}
+let gradeSpec;
+await ctx.api.request({
+    url: 'KV:get',
+    params: {
+        filterByTk: 'gradeSpec'
+    }
+}).then(res => gradeSpec = JSON.parse(resObj(res).value));
 
-const getGPA = (score) => {
-    if (score >= 85) return 4.0;
-    if (score >= 80) return 3.5;
-    if (score >= 70) return 3.0;
-    if (score >= 65) return 2.5;
-    if (score >= 50) return 2.0;
-    return 0.0;
-};
+const GPAtoGrade = (GPA) => gradeSpec.find(g => Math.round(GPA * 2) / 2 >= g.GPA)?.grade;
+
+const scoreToGPA = (score) => gradeSpec.find(g => score >= g.min).GPA;
 
 // 3b. Pre-compute avgScore & rank for each student
 const studentStats = students.map(student => {
@@ -164,7 +156,7 @@ const DocTemplate = forwardRef(({ showGPA }, ref) => (<div ref={ref}>
         </tr>
     </table>
     <p style={{ textAlign: 'center' }}>
-        លទ្ធផលប្រឡងឆមាសទី {semester.number} ឆ្នាំសិក្សា {semester.startYear}-{semester.startYear + 1}
+        លទ្ធផលប្រឡងឆមាសទី {semester.number} ឆ្នាំសិក្សា {semester.academicYear}-{semester.academicYear + 1}
     </p>
     <table>
         <thead>
@@ -219,7 +211,7 @@ const DocTemplate = forwardRef(({ showGPA }, ref) => (<div ref={ref}>
                         })}
                         <td>{stats.weightedTotalGPA}{stats.includeMakeup ? '*' : ''}</td>
                         <td>{(stats.weightedTotalGPA / totalCredit).toFixed(2)}</td>
-                        <td>{getGrade(stats.weightedTotalGPA / totalCredit)}</td>
+                        <td>{GPAtoGrade(stats.weightedTotalGPA / totalCredit)}</td>
                         {programId != 1 && <td>{rankMap[student.id]}</td>}
                     </tr>
                 );
