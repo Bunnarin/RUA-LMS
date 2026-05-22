@@ -32,7 +32,7 @@ const { data: { data: schedule } } = await ctx.api.request({
     url: 'schedule:get',
     params: {
         filterByTk: ctx.value,
-        appends: 'course,course.weights,course.weights.assessment,course.weights.PLO,course.weights.CLO,class,class.program,class.program.faculty,class.students,class.students.scores'
+        appends: ['course','course.weights','course.weights.assessment','course.weights.PLO','course.weights.CLO','class','class.program','class.program.faculty','class.students','class.students.scores']
     },
 });
 
@@ -45,6 +45,14 @@ if (isEnglish)
             filterByTk: 'englishCourseSpec'
         }
     }).then(res => englishCourseSpec = JSON.parse(resObj(res).value));
+
+let gradeSpec;
+await ctx.api.request({
+    url: 'KV:get',
+    params: {
+        filterByTk: 'gradeSpec'
+    }
+}).then(res => gradeSpec = JSON.parse(resObj(res).value));
 
 const students = schedule.class.students.sort((a, b) => a.khmerName?.localeCompare(b.khmerName, 'km'));
 const { weights } = schedule.course;
@@ -224,7 +232,7 @@ const ScoreTable = forwardRef(({ scoreMap, onCommit, onPaste }, ref) => (<div re
         <tbody>
             {students.map((student, rowIndex) => {
                 let { total, hasMakeup } = getTotal(student.id, scoreMap);
-                let pass = total / totalMaxScore >= 0.5;
+                let pass = total / totalMaxScore >= gradeSpec.find(g => g.passThreshold).min;
 
                 let passSem2;
                 if (isEnglish) {
@@ -308,7 +316,7 @@ const ScoreTable = forwardRef(({ scoreMap, onCommit, onPaste }, ref) => (<div re
     <table className="invisible-table">
         <tr>
             <td>
-                សំគាល់៖ ពិន្ទុដែលទទួលបាន 0.00 ឬ Unsatisfied ជាពិន្ទុប្រឡងធ្លាក់ដែលត្រូវប្រឡងសង។
+                សំគាល់៖ ពិន្ទុដែលទទួលបានក្រោម {gradeSpec.find(g => g.passThreshold).GPA.toFixed(2)} ឬ Unsatisfied ជាពិន្ទុប្រឡងធ្លាក់ដែលត្រូវប្រឡងសង។
                 <br /><br />
                 បានឃើញ និងឯកភាព
                 <br />

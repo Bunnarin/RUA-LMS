@@ -1,9 +1,6 @@
 import { Plugin } from '@nocobase/server';
 
-export default class NotifyPaymentPlugin extends Plugin {
-    async load() {
-        // TODO: notify non-full student (jam telegram)
-        this.app.resourceManager.registerActionHandler('student:notify-payment', async (ctx, next) => {
+export const notifyPaymentHandler = async (ctx: any, next: any, db: any) => {
             // ensure that the user have finance role
             if (!ctx.auth.user.roles.find((r: any) => r.get('name') === 'finance')) {
                 ctx.body = { success: false, message: 'You are not authorized to process payment' };
@@ -13,7 +10,7 @@ export default class NotifyPaymentPlugin extends Plugin {
             // shouldn't this pick up from the last one? it should not have any in-between
             // what abt the ppl with in-between? just go up one at a time.
             // whay abt ppl with debt from last sem? umm we'll also notify on the frontend, that they should clear debt from 
-            const semesterRepo = this.db.getRepository('semester');
+            const semesterRepo = db.getRepository('semester');
             const semesters = await semesterRepo.find({
                 filter: {
                     id: { $gte: srcSemesterId },
@@ -38,7 +35,7 @@ export default class NotifyPaymentPlugin extends Plugin {
             } else if (semesters.length > 1)
                 targetSemester = semesters[1];
 
-            const enrollmentRepo = this.db.getRepository('enrollment');
+            const enrollmentRepo = db.getRepository('enrollment');
 
             const fullScholarshipEnrollments = await enrollmentRepo.find({
                 filter: {
@@ -73,7 +70,7 @@ export default class NotifyPaymentPlugin extends Plugin {
 
             fullScholarshipEnrollments.forEach(async (e: any) => {
                 // create fee and scholarship discount
-                this.db.getRepository('ledger').createMany({
+                db.getRepository('ledger').createMany({
                     records: [
                         {
                             enrollment: e,
@@ -97,7 +94,7 @@ export default class NotifyPaymentPlugin extends Plugin {
                 });
             });
 
-            this.db.getRepository('KV').updateOrCreate({
+            db.getRepository('KV').updateOrCreate({
                 filterKeys: ['id'],
                 values: {
                     id: 'lastNotifiedSemesterId',
@@ -106,6 +103,17 @@ export default class NotifyPaymentPlugin extends Plugin {
             });
 
             ctx.body = { success: true };
+};
+
+export default class NotifyPaymentPlugin extends Plugin {
+    async load() {
+        this.app.resourceManager.registerActionHandler('custom:notify-payment', async (ctx, next) => {
+            // ensure that the user have finance role
+            if (!ctx.auth.user.roles.find((r: any) => r.get('name') === 'finance')) {
+                ctx.body = { success: false, message: 'You are not authorized to process payment' };
+                return;
+            }
+            await notifyPaymentHandler(ctx, next, this.db);
         });
     }
 }

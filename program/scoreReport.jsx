@@ -32,7 +32,7 @@ const semester = semesters.reduce((prev, curr) => {
 const { data: { data: program } } = await ctx.api.request({
     url: 'program:get',
     params: {
-        appends: 'faculty',
+        appends: ['faculty'],
         filterByTk: programId
     }
 });
@@ -43,7 +43,7 @@ const { data: { data: classes } } = await ctx.api.request({
         filter: {
             programId
         },
-        appends: 'schedules,schedules.course,schedules.course.weights,students,students.scores,students.scores.weight'
+        appends: ['schedules','schedules.course','schedules.course.weights','students','students.scores','students.scores.weight']
     }
 });
 
@@ -221,7 +221,7 @@ const DocTemplate = forwardRef(({ showGPA }, ref) => (<div ref={ref}>
     <table className="invisible-table">
         <tr>
             <td>
-                សំគាល់៖ ពិន្ទុដែលទទួលបាន 0.00 ឬ Unsatisfied ជាពិន្ទុប្រឡងធ្លាក់ដែលត្រូវប្រឡងសង។
+                សំគាល់៖ ពិន្ទុដែលទទួលបានក្រោម {gradeSpec.find(g => g.passThreshold).GPA.toFixed(2)} ឬ Unsatisfied ជាពិន្ទុប្រឡងធ្លាក់ដែលត្រូវប្រឡងសង។
                 <br /><br />
                 បានឃើញ និងឯកភាព
                 <br />

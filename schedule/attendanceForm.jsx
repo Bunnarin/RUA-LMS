@@ -8,7 +8,7 @@ const { data: { data: schedule } } = await ctx.api.request({
     url: 'schedule:get',
     params: {
         filterByTk: ctx.value,
-        appends: 'class.students'
+        appends: ['class.students']
     }
 });
 

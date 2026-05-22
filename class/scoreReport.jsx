@@ -10,7 +10,7 @@ const { data: { data: classs } } = await ctx.api.request({
     url: 'class:get',
     params: {
         filterByTk: classId,
-        appends: 'program,program.faculty,students,students.scores,students.scores.weight,schedules,schedules.course,schedules.course.weights'
+        appends: ['program','program.faculty','students','students.scores','students.scores.weight','schedules','schedules.course','schedules.course.weights']
     }
 });
 
@@ -114,13 +114,6 @@ const DocTemplate = forwardRef(({ showGPA, sortRank, selectedSemesterNum }, ref)
         rankMap[s.studentId] = currentRank;
     });
 
-    const gradesOrder = gradeSpec.map(g => g.grade);
-    const gradeCounts = studentStats.reduce((acc, stats) => {
-        const grade = GPAtoGrade(stats.weightedTotalGPA / totalCredit);
-        acc[grade] = (acc[grade] || 0) + 1;
-        return acc;
-    }, {});
-
     return (<div ref={ref}>
         <style>{`
             table, p {
@@ -216,7 +209,7 @@ const DocTemplate = forwardRef(({ showGPA, sortRank, selectedSemesterNum }, ref)
         <table className="invisible-table">
             <tr>
                 <td>
-                    សំគាល់៖ ពិន្ទុដែលទទួលបាន 0.00 ឬ Unsatisfied ជាពិន្ទុប្រឡងធ្លាក់ដែលត្រូវប្រឡងសង។
+                    សំគាល់៖ ពិន្ទុដែលទទួលបានក្រោម {gradeSpec.find(g => g.passThreshold).GPA.toFixed(2)} ឬ Unsatisfied ជាពិន្ទុប្រឡងធ្លាក់ដែលត្រូវប្រឡងសង។
                     <br /><br />
                     បានឃើញ និងឯកភាព
                     <br />

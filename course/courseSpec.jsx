@@ -8,18 +8,11 @@ const { Select, Button, Modal } = ctx.libs.antd;
 // need to check if there's existing score before we allow editing
 let editableWeightIds = [];
 await ctx.api.request({
-    url: 'users:run-sql',
+    url: 'custom:sql-query',
     method: 'POST',
     data: {
-        sql: `
-            SELECT 
-                w."id",
-                COUNT(s."id")
-            FROM weight w
-            LEFT JOIN score s ON w."id" = s."weightId" AND s."value" > 0
-            WHERE w."courseId" = ${ctx.value}
-            GROUP BY w."id";
-        `
+        type: 'course-spec',
+        courseId: ctx.value
     }
 }).then(res => editableWeightIds = res.data.data.filter(w => w.count === 0).map(w => w.id));
 
@@ -44,7 +37,7 @@ const { data: { data: { programId, CLOs, weights: oldWeights } } } = await ctx.a
     url: 'course:get',
     params: {
         filterByTk: ctx.value,
-        appends: 'weights,CLOs'
+        appends: ['weights','CLOs']
     },
 });
 

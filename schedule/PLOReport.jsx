@@ -44,7 +44,7 @@ const { data: { data: schedule } } = await ctx.api.request({
     url: 'schedule:get',
     params: {
         filterByTk: ctx.value,
-        appends: 'class,class.program,class.program.faculty,class.students,class.students.scores,course,course.weights,course.weights.CLO,course.weights.PLO'
+        appends: ['class','class.program','class.program.faculty','class.students','class.students.scores','course','course.weights','course.weights.CLO','course.weights.PLO']
     }
 });
 
@@ -231,7 +231,7 @@ const DocTemplate = forwardRef((props, ref) => (<div ref={ref}>
     <table className="invisible-table">
         <tr>
             <td>
-                សំគាល់៖ ពិន្ទុដែលទទួលបាន 0.00 ជាពិន្ទុប្រឡងធ្លាក់ដែលត្រូវប្រឡងសង។
+                សំគាល់៖ ពិន្ទុដែលទទួលបានក្រោម {gradeSpec.find(g => g.passThreshold).GPA.toFixed(2)} ជាពិន្ទុប្រឡងធ្លាក់ដែលត្រូវប្រឡងសង។
                 <br /><br />
                 បានឃើញ និងឯកភាព
                 <br />

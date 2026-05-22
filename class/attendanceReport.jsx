@@ -24,7 +24,7 @@ await ctx.api.request({
                 }
             }
         },
-        appends: 'student,course',
+        appends: ['student', 'course'],
         pageSize: 1000000 // or else it'll default to 20
     }
 }).then(res => attendances = res.data.data);
@@ -133,7 +133,7 @@ const App = () => {
 
         const sortedDates = Array.from(allDates).sort();
         const sortedStudents = Array.from(allStudents.entries()).sort((a, b) =>
-            (a[1].name || '').localeCompare(b[1].name || '')
+            (a[1].khmerName).localeCompare(b[1].khmerName)
         );
 
         // Generate table data
@@ -201,25 +201,25 @@ const App = () => {
                 width: 150,
             },
             {
-                title: 'Total P',
+                title: 'P',
                 dataIndex: 'totalP',
                 key: 'totalP',
                 width: 80,
             },
             {
-                title: 'Total A',
+                title: 'A',
                 dataIndex: 'totalA',
                 key: 'totalA',
                 width: 80,
             },
             {
-                title: 'Total L',
+                title: 'L',
                 dataIndex: 'totalL',
                 key: 'totalL',
                 width: 80,
             },
             {
-                title: 'Total E',
+                title: 'E',
                 dataIndex: 'totalE',
                 key: 'totalE',
                 width: 80,

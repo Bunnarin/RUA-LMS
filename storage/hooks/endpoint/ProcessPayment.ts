@@ -2,9 +2,7 @@ import { Plugin } from '@nocobase/server';
 
 // this is only for full paying, not debt
 // god I so need to test this thing
-export default class ProcessPaymentPlugin extends Plugin {
-    async load() {
-        this.app.resourceManager.registerActionHandler('student:process-payment', async (ctx, next) => {
+export const processPaymentHandler = async (ctx: any, next: any, db: any) => {
             // ensure that the user have finance role
             if (!ctx.auth.user.roles.find((r: any) => r.get('name') === 'finance')) {
                 ctx.body = { success: false, message: 'You are not authorized to process payment' };
@@ -13,7 +11,7 @@ export default class ProcessPaymentPlugin extends Plugin {
             // assumption: it's one of the student that's not full scholarship (cuz we already paid for them in notify-payment.ts)
             const { enrollmentId, payAnnual } = ctx.action?.params.values;
             // so we just append only one sem at a time yay
-            const enrollment = await this.db.getRepository('enrollment').findOne({
+            const enrollment = await db.getRepository('enrollment').findOne({
                 filter: {
                     id: enrollmentId,
                 },
@@ -22,7 +20,7 @@ export default class ProcessPaymentPlugin extends Plugin {
 
             // check if the validTilSemester is the first semester of the year
             // get last and next 2 sem
-            let semesters = await this.db.getRepository('semester').find({
+            let semesters = await db.getRepository('semester').find({
                 filter: {
                     id: { $gte: enrollment.get('validTilSemesterId') },
                 },
@@ -36,7 +34,7 @@ export default class ProcessPaymentPlugin extends Plugin {
             else
                 semesters = semesters.slice(1, 2);
 
-            const ledgerRepo = this.db.getRepository('ledger');
+            const ledgerRepo = db.getRepository('ledger');
             const ledgersToCreate = [];
             // first repay debt
             // aight so the server logic is whoever has the debt, have to repay the debt, no crossing
@@ -103,6 +101,17 @@ export default class ProcessPaymentPlugin extends Plugin {
 
             await ledgerRepo.createMany({ records: ledgersToCreate });
             ctx.body = { success: true };
+};
+
+export default class ProcessPaymentPlugin extends Plugin {
+    async load() {
+        this.app.resourceManager.registerActionHandler('custom:process-payment', async (ctx, next) => {
+            // ensure that the user have finance role
+            if (!ctx.auth.user.roles.find((r: any) => r.get('name') === 'finance')) {
+                ctx.body = { success: false, message: 'You are not authorized to process payment' };
+                return;
+            }
+            await processPaymentHandler(ctx, next, this.db);
         });
     }
 }

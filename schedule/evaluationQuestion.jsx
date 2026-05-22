@@ -59,7 +59,7 @@ if (closerToEnd) {
     url: 'schedule:get',
     params: {
       filterByTk: scheduleId,
-      appends: 'course.CLOs'
+      appends: ['course.CLOs']
     },
   }).then(res => CLOs = resObj(res).course.CLOs);
   questions.push(...CLOs.map(CLO => ({
@@ -92,7 +92,7 @@ const App = () => {
         formData[field.label] = '';
 
     await ctx.api.request({
-      url: 'schedule:submit-evaluation',
+      url: 'workflows.endpoint:execute?title=submit-evaluation',
       method: 'POST',
       data: {
         scheduleId,

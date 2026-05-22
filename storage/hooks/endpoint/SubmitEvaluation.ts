@@ -1,17 +1,13 @@
-import { Plugin } from '@nocobase/server';
-
-export default class SubmitEvaluationPlugin extends Plugin {
-  async load() {
-    this.app.resourceManager.registerActionHandler('schedule:submit-evaluation', async (ctx, next) => {
+export const submitEvaluationHandler = async (ctx: any, next: any) => {
       const { scheduleId, answers } = ctx.action?.params.values;
-      const scheduleRepo = this.db.getRepository('schedule');
+      const scheduleRepo = ctx.db.getRepository('schedule');
       const schedule = await scheduleRepo.findOne({ filter: { id: scheduleId }, appends: ['completedStudents'] });
       if (schedule.get('completedStudents').find((s: any) => s.id === ctx.auth.user.studentId)) {
         ctx.body = { success: false, message: 'You have already submitted this evaluation' };
         return;
       }
 
-      const studentProfile = await this.db.getRepository('student').findOne({ filter: { id: ctx.auth.user.studentId } });
+      const studentProfile = await ctx.db.getRepository('student').findOne({ filter: { id: ctx.auth.user.studentId } });
       if (!studentProfile) {
         ctx.body = { success: false, message: 'You are not authorized to submit this evaluation' };
         return;
@@ -55,6 +51,4 @@ export default class SubmitEvaluationPlugin extends Plugin {
 
       ctx.body = { success: true };
       await next();
-    });
-  }
-}
+};

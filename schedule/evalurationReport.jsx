@@ -12,14 +12,14 @@ if (scheduleId)
     url: 'schedule:get',
     params: {
       filterByTk: scheduleId,
-      appends: 'completedStudents,course,lecturers,class',
+      appends: ['completedStudents','course','lecturers','class'],
     }
   }).then(res => schedules = [resObj(res)]);
 else
   await ctx.api.request({
     url: 'schedule:list',
     params: {
-      appends: 'completedStudents,course,lecturers,class',
+      appends: ['completedStudents','course','lecturers','class'],
       pageSize: 1000
     }
   }).then(res => schedules = res.data.data);

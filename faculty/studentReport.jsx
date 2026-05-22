@@ -7,7 +7,7 @@ const { data: { data: faculty } } = await ctx.api.request({
     url: 'faculty:get',
     params: {
         filterByTk: facultyId,
-        appends: 'programs'
+        appends: ['programs']
     }
 });
 
@@ -80,7 +80,7 @@ const { data: { data: students } } = await ctx.api.request({
         pageSize: 10000,
         sort: 'khmerName',
         filter,
-        appends: 'background,background.province,scholarshipSource,classes,user,enrollments,enrollments.program,enrollments.program.faculty'
+        appends: ['background','background.province','scholarshipSource','classes','user','enrollments','enrollments.program','enrollments.program.faculty']
     }
 });
 
