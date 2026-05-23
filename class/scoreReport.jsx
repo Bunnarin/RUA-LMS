@@ -16,23 +16,11 @@ const { data: { data: classs } } = await ctx.api.request({
 
 // because LC needs to know what the latest semester is
 const { data: { data: semesters } } = await ctx.api.request({
-    url: 'semester:list',
-    params: {
-        filter: {
-            $or: [
-                { startDate: { $dateOn: { type: "lastYear" } } },
-                { startDate: { $dateOn: { type: "thisYear" } } },
-                { startDate: { $dateOn: { type: "nextYear" } } }
-            ]
-        }
-    }
+    url: 'custom:get-recent-semesters'
 });
 
 // find the semester whose end is closest to now
-const semester = semesters.reduce((prev, curr) => {
-    const time = (dateStr) => new Date(dateStr).getTime();
-    return time(curr.endDate) < time(prev.endDate) ? curr : prev;
-});
+const semester = semesters[0];
 
 const students = classs.students.sort((a, b) => a.khmerName.localeCompare(b.khmerName, 'km'));
 

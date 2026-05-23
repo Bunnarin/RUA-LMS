@@ -2,7 +2,7 @@ const resObj = (res) => Array.isArray(res.data.data) ? res.data.data[0] : res.da
 
 const { React } = ctx.libs;
 const { useRef, useState, forwardRef } = React;
-const { Button, Checkbox } = ctx.libs.antd;
+const { Button, Checkbox, Select } = ctx.libs.antd;
 
 let schedules = [];
 // 2 scenario: if we read only one schedule, or we read all schedule
@@ -30,44 +30,20 @@ const { data: { data: questions } } = await ctx.api.request({
 });
 
 const { data: { data: semesters } } = await ctx.api.request({
-  url: 'semester:list',
-  params: {
-    filter: {
-      $or: [
-        { startDate: { $dateOn: { type: "lastYear" } } },
-        { startDate: { $dateOn: { type: "thisYear" } } },
-        { startDate: { $dateOn: { type: "nextYear" } } }
-      ]
-    }
-  }
+  url: 'custom:get-recent-semesters'
 });
 
-// find the semester whose middle is closest to now
-const semester = semesters.reduce((prev, curr) => {
-  const time = (dateStr) => new Date(dateStr).getTime();
-  const prevMiddle = time(prev.startDate) + (time(prev.endDate) - time(prev.startDate)) / 2;
-  const currMiddle = time(curr.startDate) + (time(curr.endDate) - time(curr.startDate)) / 2;
-  const prevDiff = Math.abs(prevMiddle - new Date().getTime());
-  const currDiff = Math.abs(currMiddle - new Date().getTime());
-  return currDiff < prevDiff ? curr : prev;
-});
-
-// if today is closer to the end than the mid of the semester, then we append the CLO qs
-const now = new Date().getTime();
-const start = new Date(semester.startDate).getTime();
-const end = new Date(semester.endDate).getTime();
-const mid = (start + end) / 2;
-const closerToEnd = Math.abs(end - now) < Math.abs(mid - now);
+const currentSemester = semesters[0];
+const previousSemester = semesters[1];
 
 let CLOs = [];
-
-if (closerToEnd)
-  await ctx.api.request({
-    url: 'CLO:list',
-    params: {
-      pageSize: 1000
-    }
-  }).then(res => CLOs = res.data.data);
+await ctx.api.request({
+  url: 'CLO:list',
+  params: {
+    pageSize: 100000,
+    filter: scheduleId ? { courseId: schedules[0].courseId } : {}
+  }
+}).then(res => CLOs = res.data.data);
 
 // Helpers
 const getPercent = (answers) => {
@@ -79,22 +55,15 @@ const getPercent = (answers) => {
     .join("\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0");
 };
 
-const getContent = (isText, showAiSummary, loading, answers, summaries) => {
+const getContent = (isText, answers) => {
   if (!answers) return "";
   if (!isText) return getPercent(answers);
-  if (showAiSummary && loading) { // not updated yet
-    const time = new Date();
-    const minutesToWait = schedules.length * 5;
-    time.setMinutes(time.getMinutes() + minutesToWait);
-    return `summarizing. you can close this window and come back at ${time.toLocaleTimeString()}`;
-  } else if (showAiSummary && !loading) // summary is updated
-    return getPercent(summaries);
   const answerList = Object.entries(answers).flatMap(([answer, frequency]) => Array(frequency).fill(answer));
   return answerList.join("\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0");
 }
 
 // 2. The Document Template
-const DocTemplate = forwardRef(({ showAiSummary, showCLO, colWidth }, ref) => (<div ref={ref}>
+const DocTemplate = forwardRef(({ showCLO, colWidth, filteredSchedules }, ref) => (<div ref={ref}>
   <style>{`
       table, p {
           font-family: 'Khmer OS Battambang', sans-serif;
@@ -111,28 +80,7 @@ const DocTemplate = forwardRef(({ showAiSummary, showCLO, colWidth }, ref) => (<
       }
   `}</style>
 
-  {schedules.map((s, idx) => {
-    const [loading, setLoading] = useState(false);
-    if (showAiSummary && !loading)
-      // we check if all the number of summary matches with answers, if not then update them
-      questions.forEach((qs, idx) => {
-        if (qs.type !== 'text') return;
-        const answerCount = Object.values(s[`question${idx}`]).reduce((a, b) => a + b, 0);
-        const summaryCount = Object.values(s[`summary${idx}`]).reduce((a, b) => a + b, 0);
-        if (answerCount == summaryCount) return;
-        // the server will summarize and save. we'll need to wait and refresh
-        setLoading(true);
-        ctx.api.request({
-          url: 'workflows.endpoint:execute?title=summarize-schedule',
-          method: 'POST',
-          data: {
-            scheduleId: s.id,
-          }
-        });
-        setTimeout(window.location.reload, schedules.length * 5 * 60 * 1000);
-      });
-
-    return (<div key={idx}>
+  {filteredSchedules.map((s, idx) => <div key={idx}>
       <p style={{ marginBottom: '20px' }}>
         មុខវិជ្ជា៖ <strong>{s.course.khmerName}</strong>&nbsp;
         គ្រូបង្រៀន៖ <strong>{s.lecturers.map(l => l.khmerName || l.englishName).join(', ')}</strong>&nbsp;
@@ -151,7 +99,7 @@ const DocTemplate = forwardRef(({ showAiSummary, showCLO, colWidth }, ref) => (<
           {questions.map((qs, i) => (<tr key={i}>
             <td>{qs.label}</td>
             <td>
-              {getContent(qs.type == 'text', showAiSummary, loading, s[`question${i}`], s[`summary${i}`])}
+              {getContent(qs.type == 'text', s[`question${i}`])}
             </td>
           </tr>))}
           {showCLO && CLOs.filter(CLO => CLO.courseId == s.courseId).map((CLO, i) => (
@@ -163,16 +111,25 @@ const DocTemplate = forwardRef(({ showAiSummary, showCLO, colWidth }, ref) => (<
         </tbody>
       </table>
       <br /><br />
-    </div>);
-  })}
+    </div>)}
 </div>));
 
 // 3. Main App
 const App = () => {
-  const [showCLO, setShowCLO] = useState(closerToEnd);
-  const [showAiSummary, setShowAiSummary] = useState(false);
   const [colWidth, setColWidth] = useState(35);
+  const [selectedSemester, setSelectedSemester] = useState(currentSemester);
+  const [showCLO, setShowCLO] = useState(true);
   const docRef = useRef(null);
+
+  // also filter any with empty answers all
+  const filteredSchedules = schedules
+    .filter(s => s.course?.semesterNum === selectedSemester.number && 
+      // for all key of s that starts with question return true if at least one has a key
+      Object.keys(s).some(key => key.startsWith('question') && s[key])
+    );
+  
+  if (filteredSchedules.length == 0 && selectedSemester == currentSemester)
+    setSelectedSemester(previousSemester);
 
   const download = (isExcel = false) => {
     const fullHTML = `
@@ -205,6 +162,17 @@ const App = () => {
       <Button onClick={() => download(false)} type="primary">download word</Button>
       <Button onClick={() => download(true)}>download excel</Button>
 
+      <Select
+        value={selectedSemester.number}
+        onChange={(value) => setSelectedSemester(semesters.find(s => s.number === value))}
+        style={{ width: 120 }}
+      >
+        <Select.Option value={currentSemester.number}>Semester {currentSemester.number}</Select.Option>
+        {previousSemester && previousSemester.number !== currentSemester.number && (
+          <Select.Option value={previousSemester.number}>Semester {previousSemester.number}</Select.Option>
+        )}
+      </Select>
+
       <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
         <Checkbox checked={showCLO} onChange={(e) => setShowCLO(e.target.checked)} />
         show CLOs
@@ -223,9 +191,9 @@ const App = () => {
 
     <DocTemplate
       ref={docRef}
-      showAiSummary={showAiSummary}
       showCLO={showCLO}
       colWidth={colWidth}
+      filteredSchedules={filteredSchedules}
     />
   </div>);
 };

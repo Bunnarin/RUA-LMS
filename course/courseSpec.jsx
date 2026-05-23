@@ -6,7 +6,7 @@ const { useState } = React;
 const { Select, Button, Modal } = ctx.libs.antd;
 
 // need to check if there's existing score before we allow editing
-let editableWeightIds = [];
+let uneditableWeightIds = [];
 await ctx.api.request({
     url: 'custom:sql-query',
     method: 'POST',
@@ -14,7 +14,7 @@ await ctx.api.request({
         type: 'course-spec',
         courseId: ctx.value
     }
-}).then(res => editableWeightIds = res.data.data.filter(w => w.count === 0).map(w => w.id));
+}).then(res => uneditableWeightIds = res.data.data.filter(w => w.count > 0).map(w => w.id));
 
 const weightToDetach = [];
 const cloToDetach = [];
@@ -115,11 +115,7 @@ const App = () => {
                         khmerStatement: clo.khmerStatement,
                         course: ctx.value
                     }
-                }).then(res => {
-                    const newId = resObj(res).id;
-                    // so that the weight with tempId gets the dbId
-                    cloIdMap[clo.id] = newId;
-                })
+                }).then(res => cloIdMap[clo.id] = resObj(res).id);
             else if (clo.edited)
                 ctx.api.request({
                     url: 'CLO:update',
@@ -296,7 +292,7 @@ const App = () => {
 
                     return cloWeights.map((w, index) => {
                         // Logic: Is this row fully "configured"?
-                        const isLocked = !editableWeightIds.includes(w.id) && w.PLOId && w.assessmentId;
+                        const isLocked = uneditableWeightIds.includes(w.id) && w.PLOId && w.assessmentId;
 
                         // Uniqueness logic: Filter assessments already used for THIS CLO + THIS PLO
                         const usedAssessmentIds = weights
@@ -399,7 +395,7 @@ const App = () => {
                             <td>
                                 <input
                                     required
-                                    disabled={isLocked}
+                                    disabled={uneditableWeightIds.includes(w.id)}
                                     title={'to edit, you must remove this weight and add a new one'}
                                     type="number"
                                     min="1"

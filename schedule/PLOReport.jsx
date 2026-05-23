@@ -4,42 +4,6 @@ const { React } = ctx.libs;
 const { useRef, forwardRef } = React;
 const { Button } = ctx.libs.antd;
 
-const passThreshold = 50;
-
-const { data: { data: semesters } } = await ctx.api.request({
-    url: 'semester:list',
-    params: {
-        filter: {
-            $or: [
-                { startDate: { $dateOn: { type: "lastYear" } } },
-                { startDate: { $dateOn: { type: "thisYear" } } },
-                { startDate: { $dateOn: { type: "nextYear" } } }
-            ]
-        }
-    }
-});
-
-// find the semester whose middle is closest to now
-const semester = semesters.reduce((prev, curr) => {
-    const time = (dateStr) => new Date(dateStr).getTime();
-    const prevMiddle = time(prev.startDate) + (time(prev.endDate) - time(prev.startDate)) / 2;
-    const currMiddle = time(curr.startDate) + (time(curr.endDate) - time(curr.startDate)) / 2;
-    const prevDiff = Math.abs(prevMiddle - new Date().getTime());
-    const currDiff = Math.abs(currMiddle - new Date().getTime());
-    return currDiff < prevDiff ? curr : prev;
-});
-
-let gradeSpec;
-
-await ctx.api.request({
-    url: 'KV:get',
-    params: {
-        filterByTk: 'gradeSpec'
-    }
-}).then(res => gradeSpec = JSON.parse(resObj(res).value));
-
-const scoreToGrade = (score) => gradeSpec.find(g => score >= g.min)?.grade;
-
 const { data: { data: schedule } } = await ctx.api.request({
     url: 'schedule:get',
     params: {
@@ -48,10 +12,26 @@ const { data: { data: schedule } } = await ctx.api.request({
     }
 });
 
-const students = schedule.class.students.sort((a, b) => a.khmerName.localeCompare(b.khmerName, 'km'));
 const { weights, theoryCredit, practiceCredit } = schedule.course;
-const { program } = schedule.class;
+const { program, students } = schedule.class;
+students.sort((a, b) => a.khmerName.localeCompare(b.khmerName, 'km'));
 const credit = theoryCredit + practiceCredit;
+
+const { data: { data: semesters } } = await ctx.api.request({
+    url: 'custom:get-recent-semesters'
+});
+const semester = semesters.find(s => s.number === schedule.course.semesterNum);
+
+let gradeSpec;
+await ctx.api.request({
+    url: 'KV:get',
+    params: {
+        filterByTk: 'gradeSpec'
+    }
+}).then(res => gradeSpec = JSON.parse(resObj(res).value));
+const passThreshold = gradeSpec.find(g => g.passThreshold)?.min;
+
+const scoreToGrade = (score) => gradeSpec.find(g => score >= g.min)?.grade;
 
 // 2. Logic: Group weights by PLO
 const plosMap = {};

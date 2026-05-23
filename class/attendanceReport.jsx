@@ -29,6 +29,13 @@ await ctx.api.request({
     }
 }).then(res => attendances = res.data.data);
 
+const { data: { data: semesters } } = await ctx.api.request({
+    url: 'custom:get-recent-semesters'
+});
+
+const currentSemester = semesters[0];
+const previousSemester = semesters[1];
+
 const statusColorMap = {
     'P': 'green',
     'A': 'red',
@@ -38,7 +45,7 @@ const statusColorMap = {
 
 const App = () => {
     const docRef = useRef(null);
-    const [selectedCourse, setSelectedCourse] = useState(null);
+    const [selectedSemester, setSelectedSemester] = useState(currentSemester);
     const [dateRange, setDateRange] = useState(null);
 
     const download = (isExcel = false) => {
@@ -72,27 +79,9 @@ const App = () => {
         URL.revokeObjectURL(a.href);
     };
 
-    // Extract unique courses from attendance data
-    const courses = useMemo(() => {
-        const uniqueCourses = [...new Set(attendances.map(a => a.course?.id))];
-        const courseOptions = uniqueCourses.map(courseId => {
-            const course = attendances.find(a => a.course?.id === courseId)?.course;
-            return { value: courseId, label: course.khmerName };
-        });
-
-        // Add "All Courses" option at the beginning
-        return [
-            { value: null, label: 'All Courses' },
-            ...courseOptions
-        ];
-    }, [attendances]);
-
-    // Filter attendance data based on selected course and date range
+    // Filter attendance data based on selected semester and date range
     const filteredAttendances = useMemo(() => {
-        let filtered = attendances;
-
-        if (selectedCourse)
-            filtered = filtered.filter(a => a.course?.id === selectedCourse);
+        let filtered = attendances.filter(a => a.course?.semesterNum === selectedSemester.number);
 
         if (dateRange && (dateRange[0] || dateRange[1]))
             filtered = filtered.filter(a => {
@@ -106,7 +95,7 @@ const App = () => {
             });
 
         return filtered;
-    }, [attendances, selectedCourse, dateRange]);
+    }, [attendances, selectedSemester, dateRange]);
 
     // Process attendance data for table display
     const { tableData, columns } = useMemo(() => {
@@ -265,13 +254,15 @@ const App = () => {
     return (<>
         {/* Filters */}
         <Select
-            placeholder="Select Course"
-            style={{ width: 200 }}
-            allowClear
-            options={courses}
-            value={selectedCourse}
-            onChange={setSelectedCourse}
-        />
+            style={{ width: 150 }}
+            value={selectedSemester.number}
+            onChange={(value) => setSelectedSemester(semesters.find(s => s.number === value))}
+        >
+            <Select.Option value={currentSemester.number}>Semester {currentSemester.number}</Select.Option>
+            {previousSemester && previousSemester.number !== currentSemester.number && (
+                <Select.Option value={previousSemester.number}>Semester {previousSemester.number}</Select.Option>
+            )}
+        </Select>
         <RangePicker
             placeholder={['Start Date', 'End Date']}
             onChange={setDateRange}

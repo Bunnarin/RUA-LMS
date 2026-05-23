@@ -31,27 +31,11 @@ if (faculty.abbreviation == 'GS')
     });
 
 const { data: { data: semesters } } = await ctx.api.request({
-    url: 'semester:list',
-    params: {
-        filter: {
-            $or: [
-                { startDate: { $dateOn: { type: "lastYear" } } },
-                { startDate: { $dateOn: { type: "thisYear" } } },
-                { startDate: { $dateOn: { type: "nextYear" } } }
-            ]
-        }
-    }
+    url: 'custom:get-recent-semesters'
 });
 
 // find the semester whose middle is closest to now
-const semester = semesters.reduce((prev, curr) => {
-    const time = (dateStr) => new Date(dateStr).getTime();
-    const prevMiddle = time(prev.startDate) + (time(prev.endDate) - time(prev.startDate)) / 2;
-    const currMiddle = time(curr.startDate) + (time(curr.endDate) - time(curr.startDate)) / 2;
-    const prevDiff = Math.abs(prevMiddle - new Date().getTime());
-    const currDiff = Math.abs(currMiddle - new Date().getTime());
-    return currDiff < prevDiff ? curr : prev;
-});
+const semester = semesters[0];
 
 // $or neither enrollments's association nor enrollments's attribute
 // why also filter by class? cuz foundation year

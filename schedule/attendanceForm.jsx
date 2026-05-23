@@ -1,69 +1,107 @@
+// used for both schedule and class table
+const filterByTk = await ctx.getVar('ctx.popup.resource.filterByTk');
+const collectionName = ctx.popup.resource.collectionName;
+
 const resObj = (res) => Array.isArray(res.data.data) ? res.data.data[0] : res.data.data;
 
-const { Button } = ctx.libs.antd;
-const React = ctx.libs.React;
-const { useState } = React;
+const { Button, DatePicker } = ctx.libs.antd;
+const { React, dayjs } = ctx.libs;
+const { useState, useEffect, useCallback } = React;
 
-const { data: { data: schedule } } = await ctx.api.request({
-    url: 'schedule:get',
-    params: {
-        filterByTk: ctx.value,
-        appends: ['class.students']
-    }
-});
-
-const today = new Date().toISOString().split('T')[0];
-let { data: { data: attendances } } = await ctx.api.request({
-    url: 'attendance:list',
-    params: {
-        pageSize: 100, // or else it'll default to 20
-        filter: {
-            $and: [
-                {
-                    date: today,
-                    student: {
-                        classes: {
-                            id: schedule.classId
-                        }
-                    }
-                },
-                {
-                    // bcuz the student might have a whole day excuse
-                    $or: [
-                        {
-                            courseId: schedule.courseId,
-                            status: 'E'
-                        }
-                    ]
-                }
-            ]
+let schedule = {};
+if (collectionName == 'schedule')
+    await ctx.api.request({
+        url: 'schedule:get',
+        params: {
+            filterByTk,
+            appends: ['class.students']
         }
-    }
-});
+    }).then(res => schedule = resObj(res));
+else if (collectionName == 'class')
+    await ctx.api.request({
+        url: 'class:get',
+        params: {
+            filterByTk,
+            appends: ['students']
+        }
+    }).then(res => schedule.class = resObj(res));
 
-const { students } = schedule.class;
+// Cache for attendance data by date
+const attendanceCache = new Map();
+
+const students = schedule.class.students.sort((a, b) => a.khmerName.localeCompare(b.khmerName));
 
 const App = () => {
-    // Initialize state
-    // Key: studentId, Value: { status: 'A'|'P'|'L', isLocked: boolean, id?: number }
-    const [attendanceStates, setAttendanceStates] = useState(() => {
-        const map = {};
-        students.forEach(s => {
-            const att = attendances.find(a => a.studentId === s.id);
-            if (att)
-                // Lock if Present, Late or Excused. Keep Unlocked if Absent so it can be updated.
-                map[s.id] = {
-                    status: att.status,
-                    isLocked: att.status !== 'A',
-                    id: att.id,
-                    comment: att.comment || ''
-                };
-            else
-                // No record = Absent and Unlocked
-                map[s.id] = { status: 'A', isLocked: false, id: null, comment: '' };
-        });
-        return map;
-    });
+    const [selectedDate, setSelectedDate] = useState(dayjs());
+    const [attendanceStates, setAttendanceStates] = useState({});
+    const [loading, setLoading] = useState(false);
+    const [hasExistingAttendance, setHasExistingAttendance] = useState(false);
+
+    // Lazy load attendance data with caching
+    const loadAttendance = useCallback(async (date) => {
+        const dateStr = date.format('YYYY-MM-DD');
+        
+        // Check cache first
+        if (attendanceCache.has(dateStr))
+            return attendanceCache.get(dateStr);
+
+        setLoading(true);
+        try {
+            const filter = { 
+                date: dateStr, 
+                student: { 
+                    classes: { 
+                        id: schedule?.classId || filterByTk 
+                    } 
+                } 
+            };
+            if (collectionName == 'schedule')
+                filter.courseId = schedule.courseId;
+            const { data: { data: attendances } } = await ctx.api.request({
+                url: 'attendance:list',
+                params: {
+                    pageSize: 1000,
+                    filter
+                }
+            });
+            
+            // Cache the result
+            attendanceCache.set(dateStr, attendances);
+            return attendances;
+        } finally {
+            setLoading(false);
+        }
+    }, [schedule?.classId, schedule?.courseId, filterByTk]);
+
+    // Initialize attendance states when date changes
+    useEffect(() => {
+        const initAttendance = async () => {
+            const attendances = await loadAttendance(selectedDate);
+            
+            // Check if there's any existing attendance for this date
+            const hasExisting = attendances.length > 0;
+            setHasExistingAttendance(hasExisting);
+
+            const map = {};
+            students.forEach(s => {
+                const att = attendances.find(a => a.studentId === s.id);
+                if (att) {
+                    // Lock all records if past attendance exists
+                    const isPastDate = selectedDate.isBefore(dayjs(), 'day');
+                    map[s.id] = {
+                        ...att,
+                        isLocked: isPastDate || att.status !== 'A'
+                    };
+                } else {
+                    // No record = Absent and Unlocked (only if no existing attendance for the date)
+                    map[s.id] = { status: 'A', isLocked: hasExisting, id: null, comment: '' };
+                }
+            });
+            setAttendanceStates(map);
+        };
+        
+        initAttendance();
+    }, [selectedDate, loadAttendance]);
 
     const getNextStatus = {
         A: 'L',
@@ -93,10 +131,10 @@ const App = () => {
             };
         });
 
-    const handleCommentChange = (studentId, value) =>
+    const handleCommentChange = (studentId, comment) =>
         setAttendanceStates(prev => ({
             ...prev,
-            [studentId]: { ...prev[studentId], comment: value }
+            [studentId]: { ...prev[studentId], comment }
         }));
 
     const markAll = (status) =>
@@ -126,9 +164,10 @@ const App = () => {
 
         // We process all unlocked records
         const recordsToProcess = students.filter(s => !attendanceStates[s.id].isLocked);
+        const currentAttendances = attendanceCache.get(selectedDate.format('YYYY-MM-DD')) || [];
         const results = await Promise.all(recordsToProcess.map(async (s) => {
             const state = attendanceStates[s.id];
-            const originalAtt = attendances.find(a => a.studentId === s.id);
+            const originalAtt = currentAttendances.find(a => a.studentId === s.id);
             const statusChanged = state.status !== originalAtt?.status;
             let newRecord;
             if (state.id && statusChanged)
@@ -143,10 +182,10 @@ const App = () => {
                     url: 'attendance:create',
                     method: 'POST',
                     data: {
-                        date: today,
+                        date: selectedDate.format('YYYY-MM-DD'),
                         status: state.status,
                         student: s.id,
-                        course: schedule.courseId,
+                        course: schedule?.courseId,
                         comment: state.comment
                     }
                 }).then(res => newRecord = resObj(res));
@@ -159,28 +198,76 @@ const App = () => {
             results.filter(Boolean).forEach(attendance =>
                 next[attendance.studentId] = {
                     ...attendance,
-                    // Lock it if it is NOT Absent. If Absent, keep unlocked.
                     isLocked: attendance.status !== 'A',
                 }
             );
             return next;
         });
 
+        // Update cache
+        const updatedAttendances = [...currentAttendances, ...results.filter(Boolean)];
+        attendanceCache.set(selectedDate.format('YYYY-MM-DD'), updatedAttendances);
+        setHasExistingAttendance(true);
+
         ctx.message.success('Submitted successfully.');
     };
+
+    const isToday = selectedDate.isSame(dayjs(), 'day');
+    const isPastDate = selectedDate.isBefore(dayjs(), 'day');
 
     return (
         <div style={{
             fontFamily: "'Khmer OS Battambang', sans-serif",
         }}>
+            <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <Button 
+                    onClick={() => setSelectedDate(prev => prev.subtract(1, 'day'))}
+                    disabled={loading}
+                >
+                    ←
+                </Button>
+                <DatePicker 
+                    value={selectedDate}
+                    onChange={setSelectedDate}
+                    disabledDate={(current) => current && current.isAfter(dayjs(), 'day')}
+                    format="ddd DD MMM"
+                    style={{ flex: 1 }}
+                />
+                <Button 
+                    onClick={() => setSelectedDate(prev => prev.add(1, 'day'))}
+                    disabled={isToday || loading}
+                >
+                    →
+                </Button>
+            </div>
+            
+            {hasExistingAttendance && isPastDate && (
+                <div style={{ 
+                    padding: '12px', 
+                    backgroundColor: '#fef3c7', 
+                    borderRadius: '8px', 
+                    marginBottom: '16px',
+                    color: '#92400e',
+                    fontSize: '0.9rem'
+                }}>
+                    ⚠️ មិនអាចកែបាន
+                </div>
+            )}
+            
             <p>P: វត្តមាន, A: អវត្តមាន, L: យឺត, E: ដាក់ច្បាប់</p>
-            <Button onClick={() => markAll('P')}>
+            <Button 
+                onClick={() => markAll('P')}
+                disabled={hasExistingAttendance && isPastDate}
+            >
                 Mark All Present
             </Button>
             <br />
             <table>
                 {students.map(student => {
-                    const { status, isLocked } = attendanceStates[student.id];
+                    const studentState = attendanceStates[student.id];
+                    if (!studentState) return null;
+                    
+                    const { status, isLocked } = studentState;
                     const color = getColor[status];
 
                     return (
@@ -191,7 +278,7 @@ const App = () => {
                             <td style={{ width: '100px', textAlign: 'right' }}>
                                 <button
                                     onClick={() => handleToggle(student.id)}
-                                    disabled={isLocked}
+                                    disabled={isLocked || (hasExistingAttendance && isPastDate)}
                                     style={{
                                         backgroundColor: isLocked ? '#f1f5f9' : '#eff6ff',
                                         color: isLocked ? '#64748b' : color,
@@ -218,7 +305,7 @@ const App = () => {
                                         placeholder="Reason..."
                                         value={attendanceStates[student.id].comment}
                                         onChange={(e) => handleCommentChange(student.id, e.target.value)}
-                                        disabled={isLocked || !!attendanceStates[student.id].id}
+                                        disabled={isLocked || !!attendanceStates[student.id].id || (hasExistingAttendance && isPastDate)}
                                         style={{
                                             padding: '6px 12px',
                                             borderRadius: '8px',
@@ -243,6 +330,7 @@ const App = () => {
             <Button
                 onClick={onSubmit}
                 type="primary"
+                disabled={hasExistingAttendance && isPastDate}
             >
                 Submit
             </Button>
