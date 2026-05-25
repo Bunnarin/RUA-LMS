@@ -263,7 +263,7 @@ const App = () => {
             </Button>
             <br />
             <table>
-                {students.map(student => {
+                {students.map((student, idx) => {
                     const studentState = attendanceStates[student.id];
                     if (!studentState) return null;
                     
@@ -273,7 +273,7 @@ const App = () => {
                     return (
                         <tr key={student.id} className="attendance-row">
                             <td>
-                                {student.khmerName}
+                                {idx + 1}. {student.khmerName}
                             </td>
                             <td style={{ width: '100px', textAlign: 'right' }}>
                                 <button

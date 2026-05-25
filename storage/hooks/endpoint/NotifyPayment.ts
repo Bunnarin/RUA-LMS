@@ -104,16 +104,3 @@ export const notifyPaymentHandler = async (ctx: any, next: any, db: any) => {
 
             ctx.body = { success: true };
 };
-
-export default class NotifyPaymentPlugin extends Plugin {
-    async load() {
-        this.app.resourceManager.registerActionHandler('custom:notify-payment', async (ctx, next) => {
-            // ensure that the user have finance role
-            if (!ctx.auth.user.roles.find((r: any) => r.get('name') === 'finance')) {
-                ctx.body = { success: false, message: 'You are not authorized to process payment' };
-                return;
-            }
-            await notifyPaymentHandler(ctx, next, this.db);
-        });
-    }
-}
