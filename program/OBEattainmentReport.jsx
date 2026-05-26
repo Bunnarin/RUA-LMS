@@ -31,9 +31,9 @@ const { data: { data: courses } } = await ctx.api.request({
     }
 });
 
-const plos = [...new Set(courses.flatMap(({weights}) => [...new Set(weights.map(w => w.PLO_number))]))];
+const plos = [...new Set(courses.flatMap(({weights}) => [...new Set(weights.map(w => w.PLO_number))]))].sort((a, b) => a - b);
 
-// Build attainment lookup: { courseName: { CLO: { PLO: percentage } } }
+// Build achievement lookup: { courseName: { CLO: { PLO: percentage } } }
 const buildCLOPLOTable = () => {
     const rows = courses.map(course => {
         const cloMap = {};
@@ -49,7 +49,7 @@ const buildCLOPLOTable = () => {
     return rows;
 };
 
-// Build summary: collapse CLO axis, average attainment per PLO, compute CW = credit × attainment
+// Build summary: collapse CLO axis, average achievement per PLO, compute CW = credit × achievement
 const buildPLOTable = () => {
     const rows = courses.map(course => {
         const credit = course.theoryCredit + course.practiceCredit;
@@ -66,7 +66,7 @@ const buildPLOTable = () => {
             );
             const numOfPass = ploScores.filter(s => s / totalWeight > passThreshold / 100).length;
             PLOData[PLO] = {
-                attainment: ((numOfPass / (ploScores.length || 1)) * 100),
+                achievement: ((numOfPass / (ploScores.length || 1)) * 100),
                 creditWeight: credit * totalWeight / 100
             };
         }
@@ -114,7 +114,7 @@ const CLOPLOTable = ({ rows, plos }) =>
                 return clos.map((clo, i) => (
                     <tr key={`${c.name}-${clo}`}>
                         {i === 0 && <td rowSpan={clos.length}>{c.name} {c.theoryCredit + c.practiceCredit}({c.theoryCredit}-{c.practiceCredit})</td>}
-                        <td>CLO{clo}</td>
+                        <td>CLO {clo}</td>
                         {plos.map(p => <td key={p}>{c.cloMap[clo][p] || ''}</td>)}
                     </tr>
                 ));
@@ -161,7 +161,7 @@ const PLOTable = ({ rows, plos }) => {
     const avgPLOAchievements = {};
     plos.forEach(p => {
         avgPLOAchievements[p] = rows.reduce((sum, r) => 
-            sum + (r.PLOData[p]?.attainment || 0) * (r.PLOData[p]?.creditWeight || 0),
+            sum + (r.PLOData[p]?.achievement || 0) * (r.PLOData[p]?.creditWeight || 0),
         0) / cwTotals[p];
     });
     return (
@@ -173,10 +173,12 @@ const PLOTable = ({ rows, plos }) => {
                     {plos.map(p => <th key={p} colSpan={2}>PLO {p}</th>)}
                 </tr>
                 <tr>
-                    {plos.map(p => (<React.Fragment key={p}>
-                        <th>CW</th>
-                        <th>Achieve</th>
-                    </React.Fragment>))}
+                    {plos.map(p => (
+                        <React.Fragment key={p}>
+                            <th>CW</th>
+                            <th>Achieve</th>
+                        </React.Fragment>
+                    ))}
                 </tr>
             </thead>
             <tbody>
@@ -187,7 +189,7 @@ const PLOTable = ({ rows, plos }) => {
                         {plos.map(p => (
                             <React.Fragment key={p}>
                                 <td>{c.PLOData[p] ? c.PLOData[p].creditWeight.toFixed(2) : ''}</td>
-                                <td>{c.PLOData[p] ? c.PLOData[p].attainment?.toFixed(2) + '%' : ''}</td>
+                                <td>{c.PLOData[p] ? c.PLOData[p].achievement?.toFixed(2) + '%' : ''}</td>
                             </React.Fragment>
                         ))}
                     </tr>
@@ -256,6 +258,8 @@ const App = () => {
             {viewMode === 'PLO' && <PLOTable rows={PLORows} plos={plos} />}
             {viewMode === 'CLO+PLO' && <CLOPLOTable rows={CLOPLORows} plos={plos} />}
             {viewMode === 'CLO' && <CLOTable rows={CLORows} />}
+            pass: student receives at least {passThreshold}% of the maximum score<br />
+            achievement: percentage of student who passed
         </div>
     </>);
 };

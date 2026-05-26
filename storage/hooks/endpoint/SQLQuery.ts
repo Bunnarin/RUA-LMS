@@ -97,12 +97,14 @@ export const SQLQueryHandler = async (ctx: any, next: any) => {
   } else if (params.type == 'OBE-course-attainment')
     sql = `
       WITH course_students AS (
-          -- Students enrolled in this course, with their class (filtered by course's programId)
+          -- Students enrolled in this course, with their class matched by programId or facultyId
           SELECT DISTINCT sc."studentId", cl.id AS "classId", cl.name AS "className"
           FROM schedule sch
           INNER JOIN "studentsClasses" sc ON sc."classId" = sch."classId"
           INNER JOIN class cl ON cl.id = sc."classId"
-          INNER JOIN course c ON c.id = sch."courseId" AND cl."programId" = c."programId"
+          INNER JOIN program prog ON prog.id = cl."programId"
+          INNER JOIN course c ON c.id = sch."courseId"
+              AND (cl."programId" = c."programId" OR prog."facultyId" = c."facultyId")
           WHERE sch."courseId" = ${params.courseId}
       ),
       weight_groups AS (
