@@ -44,6 +44,16 @@ const App = () => {
     const docRef = useRef(null);
     const [selectedSemester, setSelectedSemester] = useState(semesters[0]);
     const [dateRange, setDateRange] = useState(null);
+    const [selectedCourseId, setSelectedCourseId] = useState(null);
+
+    const courseOptions = useMemo(() => {
+        const map = new Map();
+        attendances.forEach(a => {
+            if (a.course && !map.has(a.course.id))
+                map.set(a.course.id, a.course.name);
+        });
+        return Array.from(map, ([value, label]) => ({ value, label }));
+    }, [attendances]);
 
     useEffect(() => {
         setDateRange([dayjs(selectedSemester.startDate), dayjs(selectedSemester.endDate)]);
@@ -84,6 +94,9 @@ const App = () => {
     const filteredAttendances = useMemo(() => {
         let filtered = attendances;
 
+        if (selectedCourseId)
+            filtered = filtered.filter(a => a.course?.id === selectedCourseId);
+
         if (dateRange && (dateRange[0] || dateRange[1]))
             filtered = filtered.filter(a => {
                 const attendanceDate = new Date(a.date);
@@ -104,7 +117,7 @@ const App = () => {
             });
 
         return filtered;
-    }, [attendances, selectedSemester, dateRange]);
+    }, [attendances, selectedSemester, dateRange, selectedCourseId]);
 
     // Process attendance data for table display
     const { tableData, columns } = useMemo(() => {
@@ -262,14 +275,23 @@ const App = () => {
 
     return (<>
         {/* Filters */}
+        semester:
         <Select
-            style={{ width: 150 }}
+            style={{ width: 50 }}
             value={selectedSemester.number}
             onChange={(value) => setSelectedSemester(semesters.find(s => s.number === value))}
             options={[
                 { value: 1, label: 1 },
                 { value: 2, label: 2 }
             ]}
+        />
+        <Select
+            style={{ width: 250 }}
+            value={selectedCourseId}
+            onChange={setSelectedCourseId}
+            allowClear
+            placeholder="All Courses"
+            options={courseOptions}
         />
         <RangePicker
             placeholder={['Start Date', 'End Date']}
