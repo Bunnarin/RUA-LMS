@@ -75,8 +75,6 @@ const clos = hasWeights
     }, {})).map(clo => ({ ...clo, PLOs: Object.values(clo.PLOs) })).sort((a, b) => a.number - b.number)
     : [];
 
-const totalMaxScore = allClos.reduce((sum, c) => sum + c.weight, 0);
-
 // ── helpers ────────────────────────────────────────────────────────────────────
 
 const scoreKey = (studentId, weightId) => `${studentId}-${weightId}`;
@@ -216,7 +214,7 @@ const ScoreTable = forwardRef(({ scoreMap, onCommit, onPaste }, ref) => (<div re
         <tbody>
             {students.map((student, rowIndex) => {
                 let { total, hasMakeup } = getTotal(student.id, scoreMap);
-                let pass = total / totalMaxScore >= gradeSpec.find(g => g.passThreshold).min;
+                let pass = total >= gradeSpec.find(g => g.passThreshold).min;
 
                 let passSem2;
                 if (isEnglish) {
@@ -351,6 +349,14 @@ const App = () => {
                     params: { filterByTk: originalScore.id },
                     data: { value, makeup }
                 }).then(res => {
+                    // for some reason if the scope doesn't permit, it doesnt throw api err, we have to do it ourselves
+                    if (resObj(res) === undefined) {
+                        setScoreMap(prev => ({
+                            ...prev,
+                            [key]: { ...prev[key], value: originalScore.value, makeup }
+                        }));
+                        return ctx.modal.error({ title: 'No permission' });
+                    }
                     const idx = student.scores.findIndex(s => s.weightId == weightId);
                     student.scores[idx] = resObj(res);
                 }).catch(() =>
@@ -417,7 +423,15 @@ const App = () => {
                             params: { filterByTk: originalScore.id },
                             data: { value, makeup }
                         }).then(res => {
-                            const idx = student.scores.findIndex(s => s.weightId == clo.weightId);
+                            // for some reason it doesnt throw api err, we have to do it ourselves
+                            if (resObj(res) === undefined) {
+                                setScoreMap(prev => ({
+                                    ...prev,
+                                    [key]: { ...prev[key], value: originalScore.value, makeup }
+                                }));
+                                return ctx.modal.error({ title: 'No permission' });
+                            }
+                            const idx = student.scores.findIndex(s => s.weightId == weightId);
                             student.scores[idx] = resObj(res);
                         }).catch(() =>
                             setScoreMap(prev => ({

@@ -64,7 +64,7 @@ const { data: { data: students } } = await ctx.api.request({
         pageSize: 10000,
         sort: 'khmerName',
         filter,
-        appends: ['background','background.province','scholarshipSource','classes','user','enrollments','enrollments.program','enrollments.program.faculty']
+        appends: ['background','background.province','classes','user','enrollments','enrollments.program','enrollments.program.faculty','enrollments.scholarshipSource']
     }
 });
 
@@ -211,7 +211,7 @@ const DocTemplate = forwardRef(({ selectedProgramId, selectedYear, selectedGener
                                     {!selectedGeneration && groupBy != 'generation' && <td>{s.enrollments.find(e => e.program.facultyId == facultyId)?.generation}</td>}
                                     <td>{s.classes.filter(cls => cls.programId == selectedProgramId || !selectedProgramId).map(c => c.name).join(', ')}</td>
                                     <td>
-                                        {s.scholarshipSource ? s.scholarshipSource.name + s.scholarshipCoverage : 'បង់ថ្លៃ'}
+                                        {s.enrollments.map(e => e.scholarshipSource ? e.scholarshipSource.name + e.scholarshipCoverage : '').join(', ') || 'បង់ថ្លៃ'}
                                     </td>
                                     <td>{s.user.phone}</td>
                                 </tr>

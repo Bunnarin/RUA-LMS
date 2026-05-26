@@ -4,7 +4,7 @@ const collectionName = ctx.popup.resource.collectionName;
 
 const resObj = (res) => Array.isArray(res.data.data) ? res.data.data[0] : res.data.data;
 
-const { Button, DatePicker } = ctx.libs.antd;
+const { Button, DatePicker, Modal } = ctx.libs.antd;
 const { React, dayjs } = ctx.libs;
 const { useState, useEffect, useCallback } = React;
 
@@ -29,7 +29,8 @@ else if (collectionName == 'class')
 // Cache for attendance data by date
 const attendanceCache = new Map();
 
-const students = schedule.class.students.sort((a, b) => a.khmerName.localeCompare(b.khmerName));
+const { students } = schedule.class;
+students.sort((a, b) => a.khmerName.localeCompare(b.khmerName));
 
 const App = () => {
     const [selectedDate, setSelectedDate] = useState(dayjs());
@@ -90,7 +91,7 @@ const App = () => {
                     const isPastDate = selectedDate.isBefore(dayjs(), 'day');
                     map[s.id] = {
                         ...att,
-                        isLocked: isPastDate || att.status !== 'A'
+                        isLocked: isPastDate
                     };
                 } else {
                     // No record = Absent and Unlocked (only if no existing attendance for the date)
@@ -162,6 +163,21 @@ const App = () => {
         if (invalidRecords.length > 0)
             return ctx.modal.error({ title: `Please provide a reason for excused students` });
 
+        // Warn if submitting attendance for a past date with no prior records
+        if (isPastDate && !hasExistingAttendance) {
+            const confirmed = await new Promise(resolve => {
+                Modal.confirm({
+                    title: 'បញ្ជាក់ការដាក់វត្តមានថ្ងៃមុន',
+                    content: 'អ្នកកំពុងដាក់វត្តមានសម្រាប់ថ្ងៃមុន។ បន្ទាប់ពីដាក់រួច មិនអាចកែប្រែបានទេ។',
+                    okText: 'បន្ត',
+                    cancelText: 'បោះបង់',
+                    onOk: () => resolve(true),
+                    onCancel: () => resolve(false),
+                });
+            });
+            if (!confirmed) return;
+        }
+
         // We process all unlocked records
         const recordsToProcess = students.filter(s => !attendanceStates[s.id].isLocked);
         const currentAttendances = attendanceCache.get(selectedDate.format('YYYY-MM-DD')) || [];
@@ -198,7 +214,7 @@ const App = () => {
             results.filter(Boolean).forEach(attendance =>
                 next[attendance.studentId] = {
                     ...attendance,
-                    isLocked: attendance.status !== 'A',
+                    isLocked: false,
                 }
             );
             return next;

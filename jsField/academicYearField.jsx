@@ -2,22 +2,24 @@ const React = ctx.React;
 const { useState } = React;
 const { InputNumber } = ctx.libs.antd;
 
+const lastYear = new Date().getFullYear() - 1;
+ctx.setValue(lastYear);
+
 function JsEditableField() {
-    const lastYear = new Date().getFullYear() - 1;
-    ctx.setValue(lastYear);
     const [value, setValue] = useState(lastYear);
+
+    const onChange = (val) => {
+        setValue(val);
+        ctx.setValue(val);
+    };
 
     return (<>
         <InputNumber
             style={{ width: '50px' }}
             value={value}
-            onChange={val => {
-                setValue(val);
-                ctx.setValue(val);
-            }}
+            onChange={onChange}
             controls={true}
-        />
-        - {value + 1}
+        /> - {value + 1}
     </>);
 }
 

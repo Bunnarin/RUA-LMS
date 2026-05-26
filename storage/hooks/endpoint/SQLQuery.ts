@@ -28,7 +28,13 @@ export const SQLQueryHandler = async (ctx: any, next: any) => {
       WHERE w."courseId" = ${params.courseId}
       GROUP BY w.id;
     `;
-  else if (params.type == 'OBE-attainment')
+  else if (params.type == 'OBE-attainment') {
+    const program = await ctx.db.getRepository('program').findOne({
+      filter: {
+        id: params.programId
+      },
+      fields: ['facultyId']
+    });
     sql = `
       WITH course_students AS (
           -- Canonical student list per course, ordered by studentId
@@ -85,8 +91,61 @@ export const SQLQueryHandler = async (ctx: any, next: any) => {
           AND os."PLOId" = wg."PLOId"
       LEFT JOIN "CLO" clo ON wg."CLOId" = clo.id
       LEFT JOIN "PLO" plo ON wg."PLOId" = plo.id
-      WHERE c."programId" = ${params.programId} AND c."semesterNum" = ${params.semesterNum}
+      WHERE (c."programId" = ${params.programId} OR c."facultyId" = ${program.get('facultyId')}) AND c."semesterNum" = ${params.semesterNum}
       GROUP BY c.id;
+    `;
+  } else if (params.type == 'OBE-course-attainment')
+    sql = `
+      WITH course_students AS (
+          -- Students enrolled in this course, with their class (filtered by course's programId)
+          SELECT DISTINCT sc."studentId", cl.id AS "classId", cl.name AS "className"
+          FROM schedule sch
+          INNER JOIN "studentsClasses" sc ON sc."classId" = sch."classId"
+          INNER JOIN class cl ON cl.id = sc."classId"
+          INNER JOIN course c ON c.id = sch."courseId" AND cl."programId" = c."programId"
+          WHERE sch."courseId" = ${params.courseId}
+      ),
+      weight_groups AS (
+          SELECT "CLOId", "PLOId", SUM("weight") AS "total_weight"
+          FROM weight
+          WHERE "courseId" = ${params.courseId}
+          GROUP BY "CLOId", "PLOId"
+      ),
+      student_scores AS (
+          SELECT w."CLOId", w."PLOId", s."studentId",
+              SUM(s.value) AS total
+          FROM weight w
+          INNER JOIN score s ON s."weightId" = w.id AND s."createdAt" >= '${params.startDate}'
+          WHERE w."courseId" = ${params.courseId}
+          GROUP BY w."CLOId", w."PLOId", s."studentId"
+      ),
+      class_scores AS (
+          -- For each (CLO, PLO, class), build scores array ordered by studentId
+          SELECT
+              wg."CLOId", wg."PLOId",
+              wg."total_weight",
+              cs."classId", cs."className",
+              jsonb_agg(COALESCE(ss.total, 0) ORDER BY cs."studentId") AS scores
+          FROM weight_groups wg
+          CROSS JOIN course_students cs
+          LEFT JOIN student_scores ss ON ss."CLOId" = wg."CLOId"
+              AND ss."PLOId" = wg."PLOId"
+              AND ss."studentId" = cs."studentId"
+          GROUP BY wg."CLOId", wg."PLOId", wg."total_weight", cs."classId", cs."className"
+      )
+      SELECT
+          clo.number AS "CLO_number",
+          plo.number AS "PLO_number",
+          MAX(cs."total_weight") AS "total_weight",
+          jsonb_agg(
+              jsonb_build_object('name', cs."className", 'scores', cs.scores)
+              ORDER BY cs."classId"
+          ) AS classes
+      FROM class_scores cs
+      LEFT JOIN "CLO" clo ON cs."CLOId" = clo.id
+      LEFT JOIN "PLO" plo ON cs."PLOId" = plo.id
+      GROUP BY cs."CLOId", cs."PLOId", clo.number, plo.number
+      ORDER BY clo.number, plo.number;
     `;
 
   const result = await ctx.db.sequelize.query(sql);

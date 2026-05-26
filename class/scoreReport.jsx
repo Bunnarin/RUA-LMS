@@ -20,11 +20,11 @@ const { data: { data: semesters } } = await ctx.api.request({
 });
 
 // find the semester whose end is closest to now
-const semester = semesters[0];
+const semester = semesters[1];
 
 const students = classs.students.sort((a, b) => a.khmerName.localeCompare(b.khmerName, 'km'));
 
-const specialCourseIds = [123, 109, 99];
+const specialCourseIds = [123, 109, 99, 420, 421];
 // make sure these special are last
 const courses = classs.schedules.map(schedule => schedule.course)
     .sort((a, b) => specialCourseIds.indexOf(a.id) - specialCourseIds.indexOf(b.id));
@@ -46,6 +46,10 @@ const getCourseInfo = (scores, courseId, noWeights = false) => {
     const hasMakeup = courseScores.some(score => score.makeup);
 
     let displayValue = gradeSpec.find(g => total >= g.min).GPA.toFixed(2);
+
+    if (specialCourseIds.includes(courseId))
+        displayValue = total >= 50 ? 'sastified' : 'unsastified';
+
     // different pass logic for LC
     if (courseId == 123) {
         total = 0;
@@ -56,8 +60,8 @@ const getCourseInfo = (scores, courseId, noWeights = false) => {
         total = Math.round(total);
         const passThreshold = englishCourseSpec.semesterPassThresholds[semester.number - 1];
         displayValue = total >= passThreshold ? 'sastified' : 'unsastified';
-    } else if (courseId == 109 || courseId == 99)
-        displayValue = total >= 50 ? 'sastified' : 'unsastified';
+    } 
+
     // displayValue can be either GPA or either sastified/unsastified
     return { total, displayValue, hasMakeup };
 }
@@ -70,7 +74,7 @@ await ctx.api.request({
     }
 }).then(res => gradeSpec = JSON.parse(resObj(res).value));
 
-const GPAtoGrade = (GPA) => gradeSpec.find(g => Math.round(GPA * 2) / 2 >= g.GPA).grade;
+const GPAtoGrade = (GPA) => gradeSpec.find(g => GPA >= g.GPA).grade;
 
 const DocTemplate = forwardRef(({ showGPA, sortRank, selectedSemesterNum }, ref) => {
     const selectedCourses = courses.filter(c => c.semesterNum == selectedSemesterNum);
@@ -212,27 +216,6 @@ const DocTemplate = forwardRef(({ showGPA, sortRank, selectedSemesterNum }, ref)
                 </td>
             </tr>
         </table>
-        {/* <br />
-        <table style={{ width: '200px' }}>
-            <thead>
-                <tr>
-                    <th>Grade</th>
-                    <th>Count</th>
-                </tr>
-            </thead>
-            <tbody>
-                {gradesOrder.map(grade => (
-                    <tr key={grade}>
-                        <td>{grade}</td>
-                        <td>{gradeCounts[grade] || 0}</td>
-                    </tr>
-                ))}
-                <tr>
-                    <td>Total</td>
-                    <td>{students.length}</td>
-                </tr>
-            </tbody>
-        </table> */}
     </div>)
 })
 

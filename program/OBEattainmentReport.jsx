@@ -1,6 +1,6 @@
 const { React } = ctx.libs;
-const { useState, useRef, forwardRef } = React;
-const { Select } = ctx.libs.antd;
+const { useState, useRef } = React;
+const { Select, Button } = ctx.libs.antd;
 
 const resObj = (res) => Array.isArray(res.data.data) ? res.data.data[0] : res.data.data;
 
@@ -10,40 +10,54 @@ const { data: { data: semesters } } = await ctx.api.request({
     url: 'custom:get-recent-semesters'
 });
 
+// between the 0th and the 1st, find which whoever whose end is clostest to now
+const semester = semesters.reduce((acc, sem) => 
+    Math.abs(new Date() - new Date(acc.endDate)) < Math.abs(new Date() - new Date(sem.endDate)) ? acc : sem
+, semesters[0]);
+
 let passThreshold = 50;
 await ctx.api.request({
     url: 'KV:get?filterByTk=gradeSpec'
 }).then(res => passThreshold = JSON.parse(resObj(res).value).find(g => g.passThreshold).min);
 
+const { data: { data: courses } } = await ctx.api.request({
+    url: 'custom:sql-query',
+    method: 'post',
+    data: {
+        type: 'OBE-attainment',
+        programId,
+        semesterNum: semester.number,
+        startDate: semester.startDate,
+    }
+});
+
+const plos = [...new Set(courses.flatMap(({weights}) => [...new Set(weights.map(w => w.PLO_number))]))];
+
 // Build attainment lookup: { courseName: { CLO: { PLO: percentage } } }
-const buildTable = (courses) => {
-    const allPLOs = new Set();
+const buildCLOPLOTable = () => {
     const rows = courses.map(course => {
         const cloMap = {};
         for (const w of course.weights) {
             const clo = w.CLO_number;
             const plo = w.PLO_number;
-            allPLOs.add(plo);
             cloMap[clo] ??= {};
             const passed = w.scores.filter(s => s / w.weight > passThreshold / 100).length;
             cloMap[clo][plo] = ((passed / (w.scores.length || 1)) * 100).toFixed(2) + '%';
         }
-        return { name: course.name, cloMap };
+        return { ...course, cloMap };
     });
-    return { rows, plos: [...allPLOs].sort((a, b) => a - b) };
+    return rows;
 };
 
 // Build summary: collapse CLO axis, average attainment per PLO, compute CW = credit × attainment
-const buildSummary = (courses) => {
-    const allPLOs = new Set();
+const buildPLOTable = () => {
     const rows = courses.map(course => {
         const credit = course.theoryCredit + course.practiceCredit;
         const PLOData = {};
-        const PLOs = [...new Set(course.weights.map(w => w.PLO_number))];
-        allPLOs.addAll(...PLOs);
-        for (const PLO of PLOs) {
+        for (const PLO of plos) {
             // find the relevant weight
             const weights = course.weights.filter(w => w.PLO_number == PLO);
+            if (weights.length === 0) continue;
             const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
             // combine all weight.scores into a matrix
             const scoreMatrix = weights.map(w => w.scores);
@@ -58,11 +72,32 @@ const buildSummary = (courses) => {
         }
         return { name: course.name, credit, PLOData };
     });
-    return { rows, plos: [...allPLOs].sort((a, b) => a - b) };
+    return rows;
 };
 
-const DetailTable = ({ rows, plos }) => (
-    <table border="1" cellPadding="6" cellSpacing="0" style={{ borderCollapse: 'collapse', width: '100%', textAlign: 'center' }}>
+const buildCLOTable = () => {
+    const rows = courses.map(course => {
+        const CLOs = [...new Set(course.weights.map(w => w.CLO_number))];
+        const CLOData = {};
+        CLOs.forEach(CLO => {
+            const weights = course.weights.filter(w => w.CLO_number == CLO);
+            const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
+            // combine all weight.scores into a matrix
+            const scoreMatrix = weights.map(w => w.scores);
+            const cloScores = scoreMatrix.reduce((acc, row) => 
+                acc.map((val, i) => val + row[i])
+            );
+            const numOfPass = cloScores.filter(s => s / totalWeight > passThreshold / 100).length;
+            CLOData[CLO] = ((numOfPass / (cloScores.length || 1)) * 100)
+        });
+        
+        return { ...course, CLOs, CLOData };
+    });
+    return rows;
+};
+
+const CLOPLOTable = ({ rows, plos }) =>
+    <table border="1" style={{ borderCollapse: 'collapse', width: '100%', textAlign: 'center' }}>
         <thead>
             <tr>
                 <th rowSpan={2}>Subject</th>
@@ -74,73 +109,48 @@ const DetailTable = ({ rows, plos }) => (
             </tr>
         </thead>
         <tbody>
-            {rows.map((course) => {
-                const clos = Object.keys(course.cloMap).sort((a, b) => a - b);
+            {rows.map((c) => {
+                const clos = Object.keys(c.cloMap).sort((a, b) => a - b);
                 return clos.map((clo, i) => (
-                    <tr key={`${course.name}-${clo}`}>
-                        {i === 0 && <td rowSpan={clos.length}>{course.name}</td>}
+                    <tr key={`${c.name}-${clo}`}>
+                        {i === 0 && <td rowSpan={clos.length}>{c.name} {c.theoryCredit + c.practiceCredit}({c.theoryCredit}-{c.practiceCredit})</td>}
                         <td>CLO{clo}</td>
-                        {plos.map(p => <td key={p}>{course.cloMap[clo][p] || ''}</td>)}
+                        {plos.map(p => <td key={p}>{c.cloMap[clo][p] || ''}</td>)}
                     </tr>
                 ));
             })}
         </tbody>
     </table>
-);
 
-const CLOTable = ({ courses }) => {
-    const rows = courses.map(course => {
-        const cloData = {};
-        for (const w of course.weights) {
-            const clo = w.CLO_number;
-            cloData[clo] ??= { totalWeight: 0, scores: null };
-            cloData[clo].totalWeight += w.weight;
-            if (!cloData[clo].scores) {
-                cloData[clo].scores = [...w.scores];
-            } else {
-                cloData[clo].scores = cloData[clo].scores.map((val, i) => val + w.scores[i]);
-            }
-        }
-        const clos = Object.keys(cloData).sort((a, b) => a - b);
-        return { name: course.name, clos, cloData };
-    });
-    return (
-        <table border="1" cellPadding="6" cellSpacing="0" style={{ borderCollapse: 'collapse', width: '100%', textAlign: 'center' }}>
-            <thead>
-                <tr>
-                    <th>Subject</th>
-                    <th>CLOs</th>
-                    <th>Average CLO</th>
-                    <th>Achieved</th>
-                    <th>Need Improvement</th>
-                    <th>Improvement</th>
-                </tr>
-            </thead>
-            <tbody>
-                {rows.map(course => {
-                    return course.clos.map((clo, i) => {
-                        const d = course.cloData[clo];
-                        const passed = d.scores.filter(s => s / d.totalWeight > passThreshold / 100).length;
-                        const avg = (passed / (d.scores.length || 1)) * 100;
-                        const achieved = avg > 50;
-                        return (
-                            <tr key={`${course.name}-${clo}`}>
-                                {i === 0 && <td rowSpan={course.clos.length} style={{ textAlign: 'left', fontWeight: 'bold' }}>{course.name}</td>}
-                                <td>CLO{clo}</td>
-                                <td>{avg.toFixed(2)}%</td>
-                                <td>{achieved ? 'Yes' : 'No'}</td>
-                                <td>-</td>
-                                <td>-</td>
-                            </tr>
-                        );
-                    });
-                })}
-            </tbody>
-        </table>
-    );
-};
+const CLOTable = ({ rows }) =>
+    <table border="1" style={{ borderCollapse: 'collapse', width: '100%', textAlign: 'center' }}>
+        <thead>
+            <tr>
+                <th>Subject</th>
+                <th>CLOs</th>
+                <th>Average CLO</th>
+                <th>Achieved</th>
+                <th>Need Improvement</th>
+                <th>Improvement</th>
+            </tr>
+        </thead>
+        <tbody>
+            {rows.map(c => 
+                c.CLOs.map((CLO, i) => 
+                    <tr key={`${c.name}-${CLO}`}>
+                        {i === 0 && <td rowSpan={c.CLOs.length}>{c.name} {c.theoryCredit + c.practiceCredit}({c.theoryCredit}-{c.practiceCredit})</td>}
+                        <td>CLO {CLO}</td>
+                        <td>{c.CLOData[CLO].toFixed(2)}%</td>
+                        <td>{c.CLOData[CLO] > 50 ? 'Yes' : 'No'}</td>
+                        <td>-</td>
+                        <td>-</td>
+                    </tr>
+                )
+            )}
+        </tbody>
+    </table>
 
-const SummaryTable = ({ rows, plos }) => {
+const PLOTable = ({ rows, plos }) => {
     // for the summary footer
     // each row is a course
     const cwTotals = {};
@@ -155,7 +165,7 @@ const SummaryTable = ({ rows, plos }) => {
         0) / cwTotals[p];
     });
     return (
-        <table border="1" cellPadding="6" cellSpacing="0" style={{ borderCollapse: 'collapse', width: '100%', textAlign: 'center' }}>
+        <table border="1" style={{ borderCollapse: 'collapse', width: '100%', textAlign: 'center' }}>
             <thead>
                 <tr>
                     <th rowSpan={2}>Course</th>
@@ -170,14 +180,14 @@ const SummaryTable = ({ rows, plos }) => {
                 </tr>
             </thead>
             <tbody>
-                {rows.map(course => (
-                    <tr key={course.name}>
-                        <td>{course.name}</td>
-                        <td>{course.credit}</td>
+                {rows.map(c => (
+                    <tr key={c.name}>
+                        <td>{c.name}</td>
+                        <td>{c.credit}</td>
                         {plos.map(p => (
                             <React.Fragment key={p}>
-                                <td>{course.PLOData[p] ? course.PLOData[p].creditWeight.toFixed(2) : ''}</td>
-                                <td>{course.PLOData[p] ? course.PLOData[p].attainment?.toFixed(2) + '%' : ''}</td>
+                                <td>{c.PLOData[p] ? c.PLOData[p].creditWeight.toFixed(2) : ''}</td>
+                                <td>{c.PLOData[p] ? c.PLOData[p].attainment?.toFixed(2) + '%' : ''}</td>
                             </React.Fragment>
                         ))}
                     </tr>
@@ -200,59 +210,54 @@ const SummaryTable = ({ rows, plos }) => {
 };
 
 const App = () => {
-    const [selectedSemester, setSelectedSemester] = useState(semesters[1]);
-    const [courses, setCourses] = useState(data);
     const [viewMode, setViewMode] = useState('CLO+PLO');
+    const docRef = useRef(null);
 
-    const fetchData = async () => {
-        const { data: { data: newData } } = await ctx.api.request({
-            url: 'custom:sql-query',
-            method: 'post',
-            data: {
-                type: 'OBE-attainment',
-                programId,
-                semesterNum: selectedSemester.number,
-                startDate: selectedSemester.startDate,
-            }
-        });
-        setCourses(newData);
+    const CLOPLORows = buildCLOPLOTable();
+    const PLORows = buildPLOTable();
+    const CLORows = buildCLOTable();
+
+    const download = (isExcel = false) => {
+        const fullHTML = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office'
+                  xmlns:x='urn:schemas-microsoft-com:office:${isExcel ? 'excel' : 'word'}'
+                  xmlns='https://www.w3.org/TR/html40'>
+                <head>
+                    <meta charset='utf-8'>
+                </head>
+                <body>
+                    ${docRef.current.innerHTML}
+                </body>
+            </html>
+        `;
+        const blob = new Blob([fullHTML], { type: isExcel ? 'application/vnd.ms-excel' : 'application/msword' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = isExcel ? 'export.xls' : 'export.doc';
+        a.click();
+        URL.revokeObjectURL(a.href);
     };
 
-    fetchData();
-
-    const detail = buildTable(courses || []);
-    const summary = buildSummary(courses || []);
-
-    return (<div>
+    return (<>
         <div style={{ marginBottom: 16 }}>
-            semester:
             <Select
-                style={{ width: 120, marginLeft: 8 }}
-                options={semesters.map((semester) => ({
-                    label: semester.number,
-                    value: semester.id,
-                }))}
-                value={selectedSemester.id}
-                onChange={(id) =>
-                    setSelectedSemester(semesters.find(s => s.id === id))
-                }
-            />
-            view:
-            <Select
-                style={{ width: 140, marginLeft: 8 }}
                 options={[
                     { label: 'PLO only', value: 'PLO' },
-                    { label: 'CLO and PLO', value: 'CLO+PLO' },
+                    { label: 'CLO + PLO', value: 'CLO+PLO' },
                     { label: 'CLO only', value: 'CLO' },
                 ]}
                 value={viewMode}
                 onChange={setViewMode}
             />
+            <Button type="primary" onClick={() => download(false)}>download word</Button>
+            <Button onClick={() => download(true)}>download excel</Button>
         </div>
-        {viewMode === 'PLO' && <SummaryTable rows={summary.rows} plos={summary.plos} />}
-        {viewMode === 'CLO+PLO' && <DetailTable rows={detail.rows} plos={detail.plos} />}
-        {viewMode === 'CLO' && <CLOTable courses={courses || []} />}
-    </div>);
+        <div ref={docRef}>
+            {viewMode === 'PLO' && <PLOTable rows={PLORows} plos={plos} />}
+            {viewMode === 'CLO+PLO' && <CLOPLOTable rows={CLOPLORows} plos={plos} />}
+            {viewMode === 'CLO' && <CLOTable rows={CLORows} />}
+        </div>
+    </>);
 };
 
 ctx.render(<App />);

@@ -9,7 +9,7 @@ const programId = await ctx.getVar('ctx.popup.resource.filterByTk');
 const { data: { data: semesters } } = await ctx.api.request({
     url: 'custom:get-recent-semesters'
 });
-const semester = semesters[0];
+const semester = semesters[1];
 
 const { data: { data: program } } = await ctx.api.request({
     url: 'program:get',
@@ -31,13 +31,14 @@ const { data: { data: classes } } = await ctx.api.request({
 
 const students = classes.flatMap(cls => cls.students);
 // stringify cuz set cannot compare objects
-const specialCourseIds = [123, 109, 99];
+const specialCourseIds = [123, 109, 99, 420, 421];
 let courses = classes.flatMap(cls => cls.schedules).map(schedule => JSON.stringify(schedule.course));
+
 courses = [...new Set(courses)].map(course => JSON.parse(course))
     .sort((a, b) => specialCourseIds.indexOf(a.id) - specialCourseIds.indexOf(b.id));
 
 let englishCourseSpec;
-const hasEngish = courses.find(c => c.englishName.toLowerCase() == 'english');
+const hasEngish = courses.find(c => c.name.toLowerCase() == 'english');
 if (hasEngish)
     await ctx.api.request({
         url: 'KV:get',
@@ -53,6 +54,10 @@ const getCourseInfo = (scores, courseId, noWeights = false) => {
     const hasMakeup = courseScores.some(score => score.makeup);
 
     let displayValue = scoreToGPA(total).toFixed(2);
+
+    if (specialCourseIds.includes(courseId))
+        displayValue = total >= 50 ? 'sastified' : 'unsastified';
+
     // different pass logic for LC
     if (courseId == 123) {
         total = 0;
@@ -63,8 +68,7 @@ const getCourseInfo = (scores, courseId, noWeights = false) => {
         total = Math.round(total);
         const passThreshold = englishCourseSpec.semesterPassThresholds[semester.number - 1];
         displayValue = total >= passThreshold ? 'sastified' : 'unsastified';
-    } else if (courseId == 109 || courseId == 99)
-        displayValue = total >= 50 ? 'sastified' : 'unsastified';
+    } 
     // displayValue can be either GPA or either sastified/unsastified
     return { total, displayValue, hasMakeup };
 }
@@ -83,7 +87,7 @@ await ctx.api.request({
     }
 }).then(res => gradeSpec = JSON.parse(resObj(res).value));
 
-const GPAtoGrade = (GPA) => gradeSpec.find(g => Math.round(GPA * 2) / 2 >= g.GPA)?.grade;
+const GPAtoGrade = (GPA) => gradeSpec.find(g => GPA >= g.GPA)?.grade;
 
 const scoreToGPA = (score) => gradeSpec.find(g => score >= g.min).GPA;
 
@@ -139,6 +143,7 @@ const DocTemplate = forwardRef(({ showGPA }, ref) => (<div ref={ref}>
     </table>
     <p style={{ textAlign: 'center' }}>
         លទ្ធផលប្រឡងឆមាសទី {semester.number} ឆ្នាំសិក្សា {semester.academicYear}-{semester.academicYear + 1}
+        {program.khmerName}
     </p>
     <table>
         <thead>

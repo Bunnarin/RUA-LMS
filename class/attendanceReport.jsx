@@ -1,7 +1,7 @@
 const classId = await ctx.getVar('ctx.popup.resource.filterByTk');
 
-const { React } = ctx.libs;
-const { useState, useMemo, useRef } = React;
+const { React, dayjs } = ctx.libs;
+const { useState, useMemo, useRef, useEffect } = React;
 const { Select, Table, DatePicker, Tag, Button } = ctx.libs.antd;
 const { RangePicker } = DatePicker;
 
@@ -33,9 +33,6 @@ const { data: { data: semesters } } = await ctx.api.request({
     url: 'custom:get-recent-semesters'
 });
 
-const currentSemester = semesters[0];
-const previousSemester = semesters[1];
-
 const statusColorMap = {
     'P': 'green',
     'A': 'red',
@@ -45,8 +42,12 @@ const statusColorMap = {
 
 const App = () => {
     const docRef = useRef(null);
-    const [selectedSemester, setSelectedSemester] = useState(currentSemester);
+    const [selectedSemester, setSelectedSemester] = useState(semesters[0]);
     const [dateRange, setDateRange] = useState(null);
+
+    useEffect(() => {
+        setDateRange([dayjs(selectedSemester.startDate), dayjs(selectedSemester.endDate)]);
+    }, [selectedSemester]);
 
     const download = (isExcel = false) => {
         const fullHTML = `
@@ -81,7 +82,7 @@ const App = () => {
 
     // Filter attendance data based on selected semester and date range
     const filteredAttendances = useMemo(() => {
-        let filtered = attendances.filter(a => a.course?.semesterNum === selectedSemester.number);
+        let filtered = attendances;
 
         if (dateRange && (dateRange[0] || dateRange[1]))
             filtered = filtered.filter(a => {
@@ -90,6 +91,14 @@ const App = () => {
                 if (dateRange[0] && dateRange[1])
                     // Both start and end date provided
                     return attendanceDate >= dateRange[0].startOf('day') && attendanceDate <= dateRange[1].endOf('day');
+                
+                if (dateRange[0])
+                    // Only start date provided
+                    return attendanceDate >= dateRange[0].startOf('day');
+                
+                if (dateRange[1])
+                    // Only end date provided
+                    return attendanceDate <= dateRange[1].endOf('day');
 
                 return true;
             });
@@ -257,15 +266,15 @@ const App = () => {
             style={{ width: 150 }}
             value={selectedSemester.number}
             onChange={(value) => setSelectedSemester(semesters.find(s => s.number === value))}
-        >
-            <Select.Option value={currentSemester.number}>Semester {currentSemester.number}</Select.Option>
-            {previousSemester && previousSemester.number !== currentSemester.number && (
-                <Select.Option value={previousSemester.number}>Semester {previousSemester.number}</Select.Option>
-            )}
-        </Select>
+            options={[
+                { value: 1, label: 1 },
+                { value: 2, label: 2 }
+            ]}
+        />
         <RangePicker
             placeholder={['Start Date', 'End Date']}
-            onChange={setDateRange}
+            onCalendarChange={setDateRange}
+            value={dateRange}
         />
         <Button type="primary" onClick={() => download(false)}>download word</Button>
         <Button onClick={() => download(true)}>download excel</Button>

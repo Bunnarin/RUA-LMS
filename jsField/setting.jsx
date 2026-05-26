@@ -21,7 +21,7 @@ function JsEditableField() {
     const defaultValue = currentValue ? new Date(currentValue).toISOString().split('T')[0] : '';
     const minDate = new Date().toISOString().split('T')[0];
 
-    if (key === 'evaluationDeadline' || key === 'courseSpecDeadline') {
+    if (key === 'evaluationDeadline' || key === 'courseSpecDeadline')
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <input
@@ -48,7 +48,6 @@ function JsEditableField() {
                 )}
             </div>
         );
-    }
 
     return (
         <input
