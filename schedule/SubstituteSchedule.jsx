@@ -4,7 +4,7 @@ const { data: { data: schedules } } = await ctx.api.request({
 
 const { Button, Select, Steps } = ctx.libs.antd;
 const { React } = ctx.libs;
-const { useState, useMemo } = React;
+const { useState, useMemo, useEffect } = React;
 
 const App = () => {
     const [step, setStep] = useState(0);
@@ -49,27 +49,35 @@ const App = () => {
         return Array.from(map, ([id, name]) => ({ value: id, label: name }));
     }, [lecturerId, courseId]);
 
-    const handleNext = () => {
-        if (step === 2) {
-            const match = schedules.find(s =>
-                s.lecturers.some(l => l.id === lecturerId) &&
-                s.course?.id === courseId &&
-                s.class?.id === classId
-            );
-            if (match)
-                window.location.href = `/admin/z1boq93dfpg/view/9a8d633a145/filterbytk/${match.id}`;
-        } else {
-            setStep(prev => prev + 1);
-        }
+    const selectLecturer = (id) => { setLecturerId(id); setStep(1); };
+    const selectCourse = (id) => { setCourseId(id); setStep(2); };
+    const selectClass = (id) => {
+        const match = schedules.find(s =>
+            s.lecturers.some(l => l.id === lecturerId) &&
+            s.course?.id === courseId &&
+            s.class?.id === id
+        );
+        if (match)
+            window.location.href = `/admin/9s3bdn1jxnw/view/9a8d633a145/filterbytk/${match.id}`;
     };
 
     const handleBack = () => {
-        if (step === 1) { setCourseId(null); }
-        if (step === 2) { setClassId(null); }
+        if (step === 1) { setLecturerId(null); setCourseId(null); }
+        if (step === 2) { setCourseId(null); setClassId(null); }
         setStep(prev => prev - 1);
     };
 
-    const canProceed = [!!lecturerId, !!courseId, !!classId][step];
+    useEffect(() => {
+        if (step === 0 && lecturerOptions.length === 1) selectLecturer(lecturerOptions[0].value);
+    }, [lecturerOptions]);
+
+    useEffect(() => {
+        if (step === 1 && courseOptions.length === 1) selectCourse(courseOptions[0].value);
+    }, [courseOptions]);
+
+    useEffect(() => {
+        if (step === 2 && classOptions.length === 1) selectClass(classOptions[0].value);
+    }, [classOptions]);
 
     const stepItems = [
         { title: 'Lecturer' },
@@ -88,7 +96,7 @@ const App = () => {
                     placeholder="Select a lecturer"
                     showSearch
                     value={lecturerId}
-                    onChange={setLecturerId}
+                    onChange={selectLecturer}
                     options={lecturerOptions}
                 />
             )}
@@ -100,7 +108,7 @@ const App = () => {
                     placeholder="Select a course"
                     showSearch
                     value={courseId}
-                    onChange={setCourseId}
+                    onChange={selectCourse}
                     options={courseOptions}
                 />
             )}
@@ -112,19 +120,16 @@ const App = () => {
                     placeholder="Select a class"
                     showSearch
                     value={classId}
-                    onChange={setClassId}
+                    onChange={selectClass}
                     options={classOptions}
                 />
             )}
 
-            <div style={{ marginTop: '24px', display: 'flex', gap: '8px' }}>
-                {step > 0 && (
+            {step > 0 && (
+                <div style={{ marginTop: '24px' }}>
                     <Button onClick={handleBack}>Back</Button>
-                )}
-                <Button type="primary" disabled={!canProceed} onClick={handleNext}>
-                    {step === 2 ? 'Go' : 'Next'}
-                </Button>
-            </div>
+                </div>
+            )}
         </div>
     );
 };

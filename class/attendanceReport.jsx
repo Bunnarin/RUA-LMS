@@ -52,7 +52,7 @@ const App = () => {
             if (a.course && !map.has(a.course.id))
                 map.set(a.course.id, a.course.name);
         });
-        return Array.from(map, ([value, label]) => ({ value, label }));
+        return [{ value: null, label: 'All Courses' }, ...Array.from(map, ([value, label]) => ({ value, label }))];
     }, [attendances]);
 
     useEffect(() => {

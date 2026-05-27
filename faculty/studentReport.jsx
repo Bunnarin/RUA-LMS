@@ -64,7 +64,7 @@ const { data: { data: students } } = await ctx.api.request({
         pageSize: 10000,
         sort: 'khmerName',
         filter,
-        appends: ['background','background.province','classes','user','enrollments','enrollments.program','enrollments.program.faculty','enrollments.scholarshipSource']
+        appends: ['province','classes','user','enrollments','enrollments.program','enrollments.program.faculty','enrollments.scholarshipSource']
     }
 });
 
@@ -203,7 +203,7 @@ const DocTemplate = forwardRef(({ selectedProgramId, selectedYear, selectedGener
                                     <td>{s.englishName}</td>
                                     <td>{s.sex}</td>
                                     <td>{s.birthday}</td>
-                                    <td>{s.background?.province?.name}</td>
+                                    <td>{s.province?.name}</td>
                                     {!selectedProgramId && groupBy != 'program' && groupBy != 'faculty' && <td>{s.enrollments.find(e => e.program.facultyId == facultyId)?.program?.khmerName}</td>}
                                     {groupBy == 'faculty' && <td>{s.enrollments.filter(e => e.program.facultyId == group.key)?.map(e => e.program.khmerName)?.join(', ')}</td>}
                                     {!selectedYear && groupBy != 'year' && groupBy != 'faculty' && <td>{s.enrollments.find(e => e.program.facultyId == facultyId)?.year}</td>}
